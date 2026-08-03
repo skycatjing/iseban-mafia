@@ -129,6 +129,13 @@
   .sp{flex:1}
   hr{border:0;border-top:1px solid var(--line);margin:13px 0}
   .stack{display:flex;flex-direction:column;gap:10px}
+
+  .chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:20px;font-size:11px;
+    font-weight:600;background:var(--bg4);color:var(--tx2);border:1px solid var(--line2);vertical-align:middle}
+  .chip.live{color:var(--ok);border-color:#2a4235;background:#111a15}
+  .chip.wait{color:var(--neu);border-color:#43371f;background:#1a1610}
+  .code{font-family:Consolas,monospace;font-size:15px;letter-spacing:1.5px;font-weight:700;
+    background:var(--bg4);border:1px solid var(--line2);border-radius:7px;padding:5px 11px;color:var(--tx)}
 </style>
 </head>
 <body>
@@ -150,6 +157,44 @@
 
 <!-- ============ 설정 ============ -->
 <section class="tab on" id="tab-setup">
+  <div class="card">
+    <h2>실시간 동기화 <span class="chip" id="syncChip">오프라인</span></h2>
+    <p class="cap">방 코드를 공유하면 다른 기기·공동 사회자와 같은 진행 상태를 실시간으로 함께 봅니다.</p>
+
+    <div id="syncNoCfg" style="display:none">
+      <div class="note">
+        아직 파이어베이스 설정이 없습니다. 아래에 설정 JSON을 붙여넣으면 동기화를 쓸 수 있습니다.
+        설정값은 이 브라우저에만 저장됩니다.
+      </div>
+      <textarea id="cfgInput" style="min-height:110px;font-family:Consolas,monospace;font-size:12px"
+        placeholder='{ "apiKey": "...", "authDomain": "...", "databaseURL": "https://....firebasedatabase.app", "projectId": "..." }'></textarea>
+      <div class="bar" style="margin-top:9px"><button class="btn ghost sm" id="cfgSave">설정 저장</button></div>
+    </div>
+
+    <div id="syncOff" style="display:none">
+      <div class="bar">
+        <button class="btn ghost sm" id="syncCreate">방 만들기</button>
+        <input id="joinCode" placeholder="방 코드 입력" style="width:150px;padding:6px 10px;font-size:12px">
+        <button class="btn ghost sm" id="syncJoin">참여</button>
+        <span class="sp"></span>
+        <button class="btn ghost sm" id="cfgEdit">설정 변경</button>
+      </div>
+      <div class="muted">방에 참여하면 이 기기의 현재 내용은 방의 내용으로 덮어써집니다.</div>
+    </div>
+
+    <div id="syncOn" style="display:none">
+      <div class="bar">
+        <span class="muted">방 코드</span>
+        <code class="code" id="roomCode"></code>
+        <button class="btn ghost sm" id="codeCopy">복사</button>
+        <span class="sp"></span>
+        <button class="btn ghost sm" id="syncLeave">연결 해제</button>
+      </div>
+      <div class="note bad">방 코드는 비밀번호와 같습니다. 참여자에게 절대 알려주지 마세요. 코드를 아는 사람은 누가 마피아인지 전부 볼 수 있습니다.</div>
+    </div>
+    <div id="syncErr"></div>
+  </div>
+
   <div class="card">
     <h2>참여자</h2>
     <p class="cap">한 줄에 한 명씩. 쉼표로 구분해도 됩니다.</p>
@@ -868,35 +913,168 @@ $$('[data-copy]').forEach(b=>b.onclick=function(){
 });
 
 /* ================= 저장 ================= */
-function save(){
-  try{ localStorage.setItem('isebandMafia', JSON.stringify({
+function snapshot(){
+  return {
     players:$('#players').value, nM:$('#nMafia').value, nC:$('#nCitizen').value, nN:$('#nNeutral').value,
     fc:$('#fillCitizen').checked, fm:$('#fillMafia').checked, ro:$('#ruleOn').checked,
-    rh:$('#rHit').value, rr:$('#rRep').value, rd:$('#rDet').value, state })); }catch(e){}
+    rh:$('#rHit').value, rr:$('#rRep').value, rd:$('#rDet').value, state
+  };
+}
+function applyData(d){
+  if(!d) return;
+  $('#players').value=d.players||'';
+  if(d.nM!=null) $('#nMafia').value=d.nM;
+  if(d.nC!=null) $('#nCitizen').value=d.nC;
+  if(d.nN!=null) $('#nNeutral').value=d.nN;
+  $('#fillCitizen').checked=d.fc!==false; $('#fillMafia').checked=d.fm!==false; $('#ruleOn').checked=d.ro!==false;
+  if(d.rh) $('#rHit').value=d.rh; if(d.rr) $('#rRep').value=d.rr; if(d.rd) $('#rDet').value=d.rd;
+  const s=d.state||{};
+  state.mode = Object.assign({}, state.mode, s.mode||{});
+  state.sent = s.sent||{}; state.uses = s.uses||{}; state.dead = s.dead||{};
+  state.log  = s.log||[];  state.sel = (s.sel==null?null:s.sel);
+  state.assign = (s.assign||[]).filter(a=>a && R(a.roleId));
+  ROLES.forEach(r=>{ if(!r.filler && !state.mode[r.id]) state.mode[r.id]='auto'; });
+  if(state.sel!=null && !state.assign[state.sel]) state.sel=null;
+}
+function save(){
+  try{ localStorage.setItem('isebandMafia', JSON.stringify(snapshot())); }catch(e){}
+  syncPush();
 }
 function load(){
-  try{
-    const d=JSON.parse(localStorage.getItem('isebandMafia')||'null'); if(!d) return;
-    $('#players').value=d.players||'';
-    if(d.nM!=null) $('#nMafia').value=d.nM;
-    if(d.nC!=null) $('#nCitizen').value=d.nC;
-    if(d.nN!=null) $('#nNeutral').value=d.nN;
-    $('#fillCitizen').checked=d.fc!==false; $('#fillMafia').checked=d.fm!==false; $('#ruleOn').checked=d.ro!==false;
-    if(d.rh) $('#rHit').value=d.rh; if(d.rr) $('#rRep').value=d.rr; if(d.rd) $('#rDet').value=d.rd;
-    if(d.state){
-      state=Object.assign(state,d.state);
-      state.sent=state.sent||{}; state.uses=state.uses||{}; state.dead=state.dead||{}; state.log=state.log||[];
-      ROLES.forEach(r=>{ if(!r.filler && !state.mode[r.id]) state.mode[r.id]='auto'; });
-      state.assign=(state.assign||[]).filter(a=>R(a.roleId));
-      if(state.sel!=null && !state.assign[state.sel]) state.sel=null;
-    }
-  }catch(e){}
+  try{ applyData(JSON.parse(localStorage.getItem('isebandMafia')||'null')); }catch(e){}
 }
 ['fillCitizen','fillMafia','ruleOn','rHit','rRep','rDet'].forEach(id=>$('#'+id).addEventListener('change',save));
+
+/* ================= 실시간 동기화 (Firebase Realtime Database) =================
+   설정값(apiKey 등)은 브라우저에서 쓰라고 만들어진 값이라 공개되어도 무방합니다.
+   실제 방어선은 데이터베이스 보안 규칙이며, 방 코드가 사실상 비밀번호 역할을 합니다. */
+const FIREBASE_CONFIG = null;   // 배포본에 설정을 심으려면 여기에 객체를 넣으세요
+const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+
+const SYNC = {
+  cfg:null, db:null, ref:null, code:null, ready:false,
+  applying:false, timer:null, connected:false,
+  me: Math.random().toString(36).slice(2,10) + Date.now().toString(36)
+};
+
+function getCfg(){
+  if(FIREBASE_CONFIG) return FIREBASE_CONFIG;
+  try{ return JSON.parse(localStorage.getItem('isebandFirebase')||'null'); }catch(e){ return null; }
+}
+function syncUI(){
+  const has=!!SYNC.cfg, on=!!SYNC.code;
+  $('#syncNoCfg').style.display = has?'none':'block';
+  $('#syncOff').style.display   = (has&&!on)?'block':'none';
+  $('#syncOn').style.display    = on?'block':'none';
+  const chip=$('#syncChip');
+  chip.className='chip'+(on?(SYNC.connected?' live':' wait'):'');
+  chip.textContent = on ? (SYNC.connected?'연결됨':'연결 중…') : '오프라인';
+  if(on) $('#roomCode').textContent=SYNC.code;
+}
+function syncErr(m){
+  $('#syncErr').innerHTML = m?`<div class="note bad">${m}</div>`:'';
+}
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src=src;
+    s.onload=res; s.onerror=()=>rej(new Error('스크립트를 불러오지 못했습니다: '+src));
+    document.head.appendChild(s);
+  });
+}
+async function syncInit(){
+  if(SYNC.ready) return;
+  if(!SYNC.cfg) throw new Error('파이어베이스 설정이 없습니다.');
+  if(!SYNC.cfg.databaseURL) throw new Error('설정에 databaseURL 이 없습니다. Realtime Database 를 만들었는지 확인해 주세요.');
+  if(typeof firebase==='undefined'){
+    await loadScript(SDK+'firebase-app-compat.js');
+    await loadScript(SDK+'firebase-database-compat.js');
+  }
+  if(!firebase.apps.length) firebase.initializeApp(SYNC.cfg);
+  SYNC.db = firebase.database();
+  SYNC.db.ref('.info/connected').on('value', s=>{ SYNC.connected=!!s.val(); syncUI(); });
+  SYNC.ready = true;
+}
+function newCode(){
+  const c='abcdefghjkmnpqrstuvwxyz23456789', a=new Uint32Array(8);
+  crypto.getRandomValues(a);
+  return [...a].map(x=>c[x%c.length]).join('');
+}
+async function syncOpen(code, seed){
+  syncErr('');
+  try{
+    await syncInit();
+    SYNC.code = code;
+    SYNC.ref = SYNC.db.ref('rooms/'+code);
+    localStorage.setItem('isebandRoom', code);
+    syncUI();
+
+    // set() 은 연결될 때까지 완료되지 않으므로 기다리지 않는다
+    if(seed) syncWrite();
+
+    SYNC.ref.on('value', snap=>{
+      const v=snap.val();
+      if(!v || !v.state || v.by===SYNC.me) return;
+      SYNC.applying = true;
+      applyData(v);
+      renderRoleGrid(); updCount(); renderAll();
+      SYNC.applying = false;
+      try{ localStorage.setItem('isebandMafia', JSON.stringify(snapshot())); }catch(e){}
+    }, e=>{
+      syncErr('방을 읽지 못했습니다. 보안 규칙과 방 코드를 확인해 주세요. ('+esc(e.message)+')');
+      syncLeave();
+    });
+    syncUI();
+  }catch(e){
+    syncErr(esc(e.message));
+    SYNC.code=null; SYNC.ref=null; localStorage.removeItem('isebandRoom'); syncUI();
+  }
+}
+function syncWrite(){
+  if(!SYNC.ref) return Promise.resolve();
+  const d = JSON.parse(JSON.stringify(snapshot()));
+  return SYNC.ref.set({ ...d, updatedAt: Date.now(), by: SYNC.me })
+    .catch(e=>syncErr('저장에 실패했습니다. 보안 규칙을 확인해 주세요. ('+esc(e.message)+')'));
+}
+function syncPush(){
+  if(!SYNC.ref || SYNC.applying) return;
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(syncWrite, 350);
+}
+function syncLeave(){
+  if(SYNC.ref) SYNC.ref.off();
+  SYNC.ref=null; SYNC.code=null;
+  localStorage.removeItem('isebandRoom');
+  syncUI();
+}
+
+$('#cfgSave').onclick=()=>{
+  try{
+    const c=JSON.parse($('#cfgInput').value);
+    if(!c.databaseURL) throw new Error('databaseURL 항목이 없습니다. Realtime Database 를 만든 뒤 설정을 다시 복사해 주세요.');
+    localStorage.setItem('isebandFirebase', JSON.stringify(c));
+    SYNC.cfg=c; syncErr(''); syncUI();
+  }catch(e){ syncErr('설정을 읽지 못했습니다: '+esc(e.message)); }
+};
+$('#cfgEdit').onclick=()=>{
+  $('#cfgInput').value = JSON.stringify(SYNC.cfg, null, 2);
+  SYNC.cfg=null; syncUI();
+};
+$('#syncCreate').onclick=()=>syncOpen(newCode(), true);
+$('#syncJoin').onclick=()=>{
+  const c=$('#joinCode').value.trim().toLowerCase();
+  if(c.length<8) return syncErr('방 코드는 8자입니다.');
+  syncOpen(c, false);
+};
+$('#syncLeave').onclick=syncLeave;
+$('#codeCopy').onclick=function(){ copy(SYNC.code, this); };
 
 /* ================= 시작 ================= */
 function renderAll(){ renderResult(); renderDM(); renderPlay(); renderLog(); }
 fillRuleSelects(); load(); renderRoleGrid(); renderRef(); updCount(); renderAll();
+
+SYNC.cfg = getCfg(); syncUI();
+const savedRoom = localStorage.getItem('isebandRoom');
+if(SYNC.cfg && savedRoom) syncOpen(savedRoom, false);
 </script>
 </body>
 </html>

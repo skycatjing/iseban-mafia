@@ -1,0 +1,16 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$code": {
+        ".read":  "$code.length >= 8",
+        ".write": "$code.length >= 8 && newData.hasChildren(['state','updatedAt','by'])",
+
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "by":        { ".validate": "newData.isString() && newData.val().length <= 40" }
+      }
+    }
+  }
+}
