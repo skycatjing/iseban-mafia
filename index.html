@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[이세밴] 마피아 사회자 도구</title>
+<style>
+  :root{
+    --bg:#0e1620; --bg2:#16202c; --bg3:#1e2b39;
+    --line:#2b3b4d; --tx:#e6eef5; --tx2:#8fa5b8;
+    --acc:#3ddc97; --acc2:#35c9e0;
+    --maf:#ff6b7a; --cit:#4fd1c5; --neu:#f6c453;
+    --ink:#062018;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font-family:"Malgun Gothic","맑은 고딕",-apple-system,"Segoe UI",sans-serif;
+    font-size:14px;line-height:1.6}
+  header{padding:18px 16px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(100deg,#12303a,#123044)}
+  h1{margin:0;font-size:19px;letter-spacing:-.4px}
+  h1 span{color:var(--acc)}
+  .sub{color:var(--tx2);font-size:12px;margin-top:3px}
+  nav{display:flex;gap:4px;padding:10px 12px 0;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);background:var(--bg2)}
+  nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--tx2);
+    padding:9px 14px;font-size:14px;cursor:pointer;font-family:inherit;font-weight:700}
+  nav button.on{color:var(--acc);border-bottom-color:var(--acc)}
+  main{padding:16px;max-width:1100px;margin:0 auto}
+  .tab{display:none} .tab.on{display:block}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:15px;color:var(--acc)}
+  .card h2 small{color:var(--tx2);font-weight:400;font-size:12px;margin-left:6px}
+  label{display:block;font-size:12px;color:var(--tx2);margin-bottom:4px}
+  textarea,input,select{background:var(--bg3);border:1px solid var(--line);color:var(--tx);
+    border-radius:8px;padding:8px 10px;font-family:inherit;font-size:14px;width:100%}
+  textarea{min-height:150px;resize:vertical;line-height:1.7}
+  input[type=checkbox]{width:auto;accent-color:var(--acc);margin-right:6px;transform:scale(1.15)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:110px}
+  .chk{display:flex;align-items:center;color:var(--tx);font-size:13px;margin:7px 0;cursor:pointer}
+  button.btn{background:linear-gradient(100deg,var(--acc),var(--acc2));border:0;color:var(--ink);
+    font-weight:800;padding:11px 18px;border-radius:9px;cursor:pointer;font-size:14px;font-family:inherit}
+  button.btn.ghost{background:var(--bg3);color:var(--tx);border:1px solid var(--line);font-weight:600}
+  button.btn.sm{padding:6px 11px;font-size:12px;border-radius:7px}
+  .badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:800}
+  .b-mafia{background:rgba(255,107,122,.16);color:var(--maf)}
+  .b-citizen{background:rgba(79,209,197,.16);color:var(--cit)}
+  .b-neutral{background:rgba(246,196,83,.16);color:var(--neu)}
+  #resultTable,#refTable{overflow-x:auto}
+  table{width:100%;min-width:600px;border-collapse:collapse;font-size:13px}
+  th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th:nth-child(-n+4),td:nth-child(-n+4){white-space:nowrap}
+  td:last-child,th:last-child{white-space:normal}
+  th{color:var(--tx2);font-size:11px;font-weight:700;background:var(--bg3)}
+  .warn{background:rgba(255,198,95,.1);border:1px solid rgba(255,198,95,.4);color:#ffd88a;
+    padding:9px 12px;border-radius:8px;margin-bottom:10px;font-size:13px}
+  .err{background:rgba(255,107,122,.1);border:1px solid rgba(255,107,122,.5);color:#ff9aa5}
+  pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:11px;
+    white-space:pre-wrap;word-break:break-all;font-size:12.5px;font-family:Consolas,monospace;
+    max-height:340px;overflow:auto;margin:0}
+  .rolegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:8px}
+  .rolerow{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);
+    border-radius:8px;padding:7px 9px}
+  .rolerow .nm{flex:1;font-size:13px;font-weight:700}
+  .rolerow select{width:auto;padding:4px 6px;font-size:12px}
+  .rolerow.ban{opacity:.45}
+  .rolerow.must{border-color:var(--acc)}
+  .plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+  .p{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+    display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px}
+  .p.dead{opacity:.4;text-decoration:line-through}
+  .log{font-size:13px;max-height:400px;overflow:auto}
+  .log div{padding:6px 9px;border-bottom:1px solid var(--line)}
+  .log .t{color:var(--tx2);font-size:11px;margin-right:6px}
+  .ok{color:#7ee787;font-weight:800}
+  .no{color:#ff7b8a;font-weight:800}
+  .muted{color:var(--tx2);font-size:12px}
+  .rollbtns{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .rollbtns button{text-align:left;line-height:1.35}
+  .rollbtns button b{display:block;font-size:13px}
+  .rollbtns button i{font-style:normal;font-size:11px;opacity:.75}
+  hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>[이세밴] 마피아 <span>사회자 도구</span></h1>
+  <div class="sub">직업 자동 배정 · 특수효과 확률 자동 판정 · 밴드 채팅용 문구 생성</div>
+</header>
+
+<nav>
+  <button data-tab="setup" class="on">① 설정 &amp; 배정</button>
+  <button data-tab="result">② 배정 결과</button>
+  <button data-tab="play">③ 진행 (확률 굴림)</button>
+  <button data-tab="ref">④ 직업 사전</button>
+</nav>
+
+<main>
+
+<!-- ================= 설정 ================= -->
+<section class="tab on" id="tab-setup">
+
+  <div class="card">
+    <h2>참여자 명단 <small>한 줄에 한 명씩 (쉼표 구분도 가능)</small></h2>
+    <textarea id="players" placeholder="닉네임1&#10;닉네임2&#10;닉네임3"></textarea>
+    <div class="muted" style="margin-top:6px">인원: <b id="pcount">0</b>명 &nbsp;|&nbsp; 배정 인원 합계: <b id="scount">0</b>명 <span id="pmatch"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>진영별 인원</h2>
+    <div class="row">
+      <div><label>마피아 팀</label><input type="number" id="nMafia" value="2" min="0"></div>
+      <div><label>시민 팀</label><input type="number" id="nCitizen" value="6" min="0"></div>
+      <div><label>중립</label><input type="number" id="nNeutral" value="1" min="0"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="autoFit" style="width:100%">인원수에 맞춰 자동 분배</button></div>
+    </div>
+    <hr>
+    <label class="chk"><input type="checkbox" id="fillCitizen" checked>시민 팀 남는 자리는 일반 <b style="margin:0 4px">'시민'</b>으로 채우기 <span class="muted">(끄면 전부 특수직업)</span></label>
+    <label class="chk"><input type="checkbox" id="fillMafia" checked>마피아 팀 남는 자리는 일반 <b style="margin:0 4px">'마피아'</b>로 채우기</label>
+  </div>
+
+  <div class="card">
+    <h2>직업 조합 규칙 <small>청부업자 · 기자 · 탐정</small></h2>
+    <label class="chk"><input type="checkbox" id="ruleOn" checked>규칙 적용 — <b style="margin:0 4px">청부업자가 나오면 기자 제외 + 탐정 포함 / 청부업자가 없으면 기자 + 탐정 모두 포함</b></label>
+    <div class="row" style="margin-top:8px">
+      <div><label>청부업자 역할</label><select id="rHit"></select></div>
+      <div><label>기자 역할</label><select id="rRep"></select></div>
+      <div><label>탐정 역할</label><select id="rDet"></select></div>
+    </div>
+    <div class="muted" style="margin-top:7px">※ 이 규칙은 아래 개별 설정보다 우선 적용됩니다.</div>
+  </div>
+
+  <div class="card">
+    <h2>직업별 설정 <small>자동 = 랜덤 후보 / 고정 = 반드시 포함 / 제외 = 안 나옴</small></h2>
+    <div style="margin-bottom:9px">
+      <button class="btn ghost sm" data-all="auto">전부 자동</button>
+      <button class="btn ghost sm" data-all="ban">전부 제외</button>
+    </div>
+    <div class="rolegrid" id="roleGrid"></div>
+  </div>
+
+  <div id="msg"></div>
+  <button class="btn" id="doAssign" style="width:100%;padding:15px;font-size:16px">🎲 직업 무작위 배정</button>
+</section>
+
+<!-- ================= 결과 ================= -->
+<section class="tab" id="tab-result">
+  <div class="card">
+    <h2>사회자용 전체 명단</h2>
+    <div id="resultTable"><div class="muted">아직 배정하지 않았습니다.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>① 개인 DM용 문구 <small>각자에게 개별 전송</small></h2>
+    <button class="btn ghost sm" data-copy="outDM">📋 전체 복사</button>
+    <pre class="out" id="outDM" style="margin-top:8px"></pre>
+  </div>
+
+  <div class="card">
+    <h2>② 마피아 팀 단톡용 문구</h2>
+    <button class="btn ghost sm" data-copy="outMafia">📋 복사</button>
+    <pre class="out" id="outMafia" style="margin-top:8px"></pre>
+  </div>
+
+  <div class="card">
+    <h2>③ 전체 공지용 문구 <small>누가 무엇인지는 비공개, 구성만 공개</small></h2>
+    <button class="btn ghost sm" data-copy="outPublic">📋 복사</button>
+    <pre class="out" id="outPublic" style="margin-top:8px"></pre>
+  </div>
+</section>
+
+<!-- ================= 진행 ================= -->
+<section class="tab" id="tab-play">
+  <div class="card">
+    <h2>생존자 관리 <small>클릭하면 사망/생존 전환</small></h2>
+    <div class="plist" id="alivePlist"><div class="muted">배정 후 표시됩니다.</div></div>
+    <div class="muted" style="margin-top:8px">생존 <b id="aliveN">0</b>명 / 전체 <b id="totalN">0</b>명 &nbsp;
+      <button class="btn ghost sm" id="reviveAll">전원 생존으로 초기화</button></div>
+  </div>
+
+  <div class="card">
+    <h2>이번 판 특수효과 자동 판정</h2>
+    <div class="rollbtns" id="rollBtns"><div class="muted">배정 후 표시됩니다.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>수동 굴림</h2>
+    <div class="row">
+      <div><label>확률(%)</label><input type="number" id="cusP" value="50" min="0" max="100"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="cusRoll" style="width:100%">확률 굴리기</button></div>
+      <div><label>무작위 대상 인원</label><input type="number" id="cusN" value="1" min="1"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn ghost" id="cusPick" style="width:100%">생존자 중 뽑기</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>판정 기록 <small><button class="btn ghost sm" id="clearLog">비우기</button> <button class="btn ghost sm" data-copy="logCopy">📋 복사</button></small></h2>
+    <div class="log" id="log"><div class="muted">기록 없음</div></div>
+    <textarea id="logCopy" style="display:none"></textarea>
+  </div>
+</section>
+
+<!-- ================= 사전 ================= -->
+<section class="tab" id="tab-ref">
+  <div class="card">
+    <h2>직업 사전 <small>출처: [이세밴] 마피아 직업 요약 (노션)</small></h2>
+    <div id="refTable"></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* ---------------- 직업 데이터 ---------------- */
+const ROLES = [
+  // 시민 팀
+  {id:'citizen',  name:'시민',            team:'citizen', filler:true,
+   desc:'특별한 능력 없음. 낮 투표로 마피아를 찾아내세요.'},
+  {id:'princess', name:'공주',            team:'citizen',
+   desc:'낮 투표 처형 시 정체 공개되며, 공주를 찍은 인원은 다음 날 투표권 박탈'},
+  {id:'ddulgi',   name:'뚤기',            team:'citizen',
+   desc:'모든 사망 위기 시 50% 확률로 생존 (최대 2회)',
+   rolls:[{label:'사망 위기 생존 판정', p:50, limit:2}]},
+  {id:'bat',      name:'박쥐',            team:'citizen',
+   desc:'마피아 공격 시 사망하지 않고 마피아 편으로 변절 및 승리 조건 공유'},
+  {id:'ine',      name:'성녀 아이네',      team:'citizen',
+   desc:'밤마다 1명 선택 / 사망자 33% 확률 부활, 생존자 33% 확률 구제',
+   rolls:[{label:'사망자 부활 판정', p:33},{label:'생존자 구제 판정', p:33}]},
+  {id:'doctor',   name:'의사',            team:'citizen',
+   desc:'밤마다 1명 지정하여 마피아 공격 방어 (자신 포함)'},
+  {id:'reporter', name:'이세계뉴스 기자',  team:'citizen',
+   desc:'게임당 2회 / 지목한 대상의 직업을 다음 날 아침 전체 보도 (보도 전 사망 시 무효)'},
+  {id:'crimewak', name:'크라임왁 고세구',  team:'citizen',
+   desc:'밤마다 1명을 지목하여 그 사람의 밤 행동(누구를 지목했는지) 조사'},
+  {id:'terror',   name:'테러리스트',       team:'citizen',
+   desc:'마피아에게 습격당해 사망 시 1명 지목하여 동귀어진 (지목 대상 직업 비공개)'},
+  {id:'hanyang',  name:'하냥',            team:'citizen',
+   desc:'매 투표마다 항상 2표(x2) 행사'},
+  {id:'hacker',   name:'해커 주르르',      team:'citizen',
+   desc:'판당 1회 / 대상 직업 파악 및 자신에게 오는 모든 능력 대상에게 반사 (대상 사망 시 소멸)'},
+  {id:'perfumer', name:'조향사',           team:'citizen',
+   desc:'지목한 사람 사망 시, 마피아 편 · 시민 편 하나씩 공개 지목'},
+
+  // 마피아 팀
+  {id:'mafia',    name:'마피아',           team:'mafia', filler:true,
+   desc:'밤마다 팀원과 모의하여 1명 사살'},
+  {id:'madam',    name:'마담 징버거',      team:'mafia',
+   desc:'판당 1회 / 시민 편 1명을 포섭하여 마피아 직업으로 전환'},
+  {id:'lilpa',    name:'행동대장 릴파',    team:'mafia',
+   desc:'밤마다 1명 기본 사살 + 33% 확률로 1명 추가 사살',
+   rolls:[{label:'추가 사살 판정', p:33}]},
+  {id:'candy',    name:'행복사탕 고세구',  team:'mafia',
+   desc:'밤마다 1명 재워서 다음 날 투표 불가능하게 제작'},
+  {id:'hitman',   name:'히트맨 비챤',      team:'mafia',
+   desc:'밤마다 1명 지목 및 직업 적중 시 사살'},
+
+  // 중립
+  {id:'kkaeddul', name:'깨뚤',            team:'neutral',
+   desc:'낮 투표로 처형당할 시 즉시 게임 종료 및 단독 승리'},
+  {id:'drunk',    name:'만취백송도',       team:'neutral',
+   desc:'판당 1회 / 무작위 3명 사살 (본인 포함 가능) / 시민 승리 시 생존해 있다면 단독 승리',
+   picks:[{label:'무작위 3명 사살', n:3, self:true}]},
+  {id:'cult',     name:'비챤섹시교 교주',  team:'neutral',
+   desc:'밤마다 1명 무자각 전도 / 모든 생존자 전도 성공 시 단독 승리'},
+];
+const R = id => ROLES.find(r=>r.id===id);
+const TEAMNAME = {mafia:'마피아 팀', citizen:'시민 팀', neutral:'중립'};
+const TEAMWIN = {
+  mafia:'마피아 팀이 시민 수 이상이 되면 승리',
+  citizen:'마피아를 전원 제거하면 승리',
+  neutral:'각자의 단독 승리 조건을 노리세요'
+};
+
+/* ---------------- 상태 ---------------- */
+let state = {
+  mode:{},          // roleId -> auto|must|ban
+  assign:[],        // {name, roleId}
+  dead:{},          // name -> true
+  log:[],
+  uses:{}           // "name|label" -> count
+};
+ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]='auto'; });
+
+const $  = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+const shuffle = a=>{ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+/* ---------------- 탭 ---------------- */
+$$('nav button').forEach(b=>b.onclick=()=>{
+  $$('nav button').forEach(x=>x.classList.remove('on'));
+  $$('.tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); $('#tab-'+b.dataset.tab).classList.add('on');
+});
+
+/* ---------------- 규칙 셀렉트 ---------------- */
+function fillRuleSelects(){
+  const opt = list => list.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  $('#rHit').innerHTML = opt(ROLES.filter(r=>!r.filler));
+  $('#rRep').innerHTML = opt(ROLES.filter(r=>!r.filler));
+  $('#rDet').innerHTML = opt(ROLES.filter(r=>!r.filler));
+  $('#rHit').value='hitman'; $('#rRep').value='reporter'; $('#rDet').value='crimewak';
+}
+
+/* ---------------- 직업별 설정 UI ---------------- */
+function renderRoleGrid(){
+  $('#roleGrid').innerHTML = ROLES.filter(r=>!r.filler).map(r=>`
+    <div class="rolerow ${state.mode[r.id]}" data-r="${r.id}">
+      <span class="badge b-${r.team}">${r.team==='mafia'?'마':r.team==='citizen'?'시':'중'}</span>
+      <span class="nm" title="${r.desc}">${r.name}</span>
+      <select data-m="${r.id}">
+        <option value="auto">자동</option>
+        <option value="must">고정</option>
+        <option value="ban">제외</option>
+      </select>
+    </div>`).join('');
+  $$('#roleGrid select').forEach(s=>{
+    s.value = state.mode[s.dataset.m];
+    s.onchange = ()=>{ state.mode[s.dataset.m]=s.value; renderRoleGrid(); save(); };
+  });
+}
+$$('[data-all]').forEach(b=>b.onclick=()=>{
+  ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]=b.dataset.all; });
+  renderRoleGrid(); save();
+});
+
+/* ---------------- 인원 카운트 ---------------- */
+function parsePlayers(){
+  return $('#players').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean)
+    .filter((v,i,a)=>a.indexOf(v)===i);
+}
+function updCount(){
+  const p = parsePlayers().length;
+  const s = +$('#nMafia').value + +$('#nCitizen').value + +$('#nNeutral').value;
+  $('#pcount').textContent=p; $('#scount').textContent=s;
+  $('#pmatch').innerHTML = p===0?'' : (p===s?'<span class="ok">✔ 일치</span>':'<span class="no">✖ 불일치</span>');
+}
+['players','nMafia','nCitizen','nNeutral'].forEach(id=>$('#'+id).addEventListener('input',()=>{updCount();save();}));
+
+$('#autoFit').onclick=()=>{
+  const n = parsePlayers().length;
+  if(!n) return alert('참여자 명단을 먼저 입력해주세요.');
+  const m = Math.max(1, Math.round(n/4));         // 대략 1/4
+  const neu = n>=8 ? 1 : 0;
+  $('#nMafia').value=m; $('#nNeutral').value=neu; $('#nCitizen').value=n-m-neu;
+  updCount(); save();
+};
+
+/* ---------------- 배정 ---------------- */
+function pickTeam(team, count, forced, banned, allowFiller, warns){
+  const pool = ROLES.filter(r=>r.team===team && !r.filler);
+  const filler = ROLES.find(r=>r.team===team && r.filler);
+  const ban = new Set(banned);
+  const chosen = [];
+  const push = r => { if(r && chosen.length<count && !chosen.includes(r)) chosen.push(r); };
+
+  forced.forEach(id=>{
+    const r = pool.find(x=>x.id===id);
+    if(!r) return;
+    if(chosen.length>=count){ warns.push(`자리가 부족해 <b>${r.name}</b>을(를) 넣지 못했습니다. (${TEAMNAME[team]} 인원을 늘려주세요)`); return; }
+    push(r);
+  });
+  shuffle(pool.filter(r=>state.mode[r.id]==='must' && !ban.has(r.id))).forEach(r=>{
+    if(chosen.includes(r)) return;
+    if(chosen.length>=count){ warns.push(`자리가 부족해 고정 직업 <b>${r.name}</b>을(를) 넣지 못했습니다.`); return; }
+    push(r);
+  });
+  shuffle(pool.filter(r=>state.mode[r.id]!=='ban' && !ban.has(r.id) && !chosen.includes(r)))
+    .forEach(r=>push(r));
+
+  if(chosen.length<count){
+    if(filler){
+      if(!allowFiller) warns.push(`${TEAMNAME[team]}에 배정 가능한 특수직업이 부족하여 <b>${filler.name}</b> ${count-chosen.length}명이 들어갔습니다.`);
+      while(chosen.length<count) chosen.push(filler);
+    }else{
+      warns.fatal = `<b>중립</b>에 배정할 직업이 ${count-chosen.length}개 부족합니다. `
+        + `사용 가능한 중립 직업은 ${pool.filter(r=>state.mode[r.id]!=='ban').length}종입니다. `
+        + `중립 인원을 줄이거나 '제외' 설정을 확인해주세요.`;
+    }
+  }
+  return chosen;
+}
+
+$('#doAssign').onclick = ()=>{
+  const players = parsePlayers();
+  const nM=+$('#nMafia').value, nC=+$('#nCitizen').value, nN=+$('#nNeutral').value;
+  const msg=$('#msg'); msg.innerHTML='';
+  const warns=[];
+
+  if(!players.length) return msg.innerHTML='<div class="warn err">참여자 명단이 비어 있습니다.</div>';
+  if(nM+nC+nN !== players.length)
+    return msg.innerHTML=`<div class="warn err">진영 인원 합계(${nM+nC+nN}명)와 참여자 수(${players.length}명)가 다릅니다.</div>`;
+
+  // 1) 마피아 팀 먼저 (청부업자 포함 여부를 알아야 하므로)
+  const mafiaRoles = pickTeam('mafia', nM, [], [], $('#fillMafia').checked, warns);
+
+  // 2) 규칙 적용
+  const forcedC=[], bannedC=[];
+  let ruleNote='';
+  if($('#ruleOn').checked){
+    const hit=$('#rHit').value, rep=$('#rRep').value, det=$('#rDet').value;
+    const hitIn = mafiaRoles.some(r=>r.id===hit) ;
+    // 청부업자가 시민/중립 진영으로 지정된 경우도 대비
+    const hitRole = R(hit);
+    forcedC.push(det);
+    if(hitIn){ bannedC.push(rep); ruleNote=`규칙 적용: <b>${hitRole.name}</b> 포함 → <b>${R(rep).name}</b> 제외 · <b>${R(det).name}</b> 포함`; }
+    else     { forcedC.push(rep);  ruleNote=`규칙 적용: <b>${hitRole.name}</b> 미포함 → <b>${R(rep).name}</b> + <b>${R(det).name}</b> 포함`; }
+    [det, hitIn?null:rep].filter(Boolean).forEach(id=>{
+      if(state.mode[id]==='ban') warns.push(`<b>${R(id).name}</b>은(는) '제외'로 설정되어 있었지만 조합 규칙에 따라 포함되었습니다.`);
+    });
+  }
+
+  const citizenRoles = pickTeam('citizen', nC,
+      forcedC.filter(id=>R(id).team==='citizen'),
+      bannedC, $('#fillCitizen').checked, warns);
+  const neutralRoles = pickTeam('neutral', nN, [], [], false, warns);
+  if(warns.fatal) return msg.innerHTML=`<div class="warn err">${warns.fatal}</div>`;
+
+  // 규칙 대상이 시민 진영이 아닐 경우 보정 안내
+  forcedC.forEach(id=>{ if(R(id).team!=='citizen') warns.push(`<b>${R(id).name}</b>은(는) 시민 팀이 아니어서 규칙으로 자동 포함되지 않았습니다. 직업별 설정에서 '고정'으로 지정해주세요.`); });
+
+  // 3) 사람 ↔ 직업 무작위 매칭
+  const all = shuffle([...mafiaRoles, ...citizenRoles, ...neutralRoles]);
+  if(all.length !== players.length)
+    return msg.innerHTML=`<div class="warn err">배정 가능한 직업(${all.length}개)이 참여자 수(${players.length}명)와 맞지 않습니다. 진영 인원과 '제외' 설정을 확인해주세요.</div>`;
+  const ppl = shuffle([...players]);
+  state.assign = ppl.map((name,i)=>({name, roleId: all[i].id}));
+  state.dead={}; state.uses={};
+
+  // 킬러 부재 경고
+  if(nM>0 && !mafiaRoles.some(r=>['mafia','lilpa'].includes(r.id)))
+    warns.push('마피아 팀에 <b>기본 사살</b> 능력자(마피아 / 행동대장 릴파)가 없습니다. 진행 방식을 확인하세요.');
+
+  msg.innerHTML = (ruleNote?`<div class="warn" style="background:rgba(53,201,224,.1);border-color:rgba(53,201,224,.45);color:#9fe8f2">${ruleNote}</div>`:'')
+    + warns.map(w=>`<div class="warn">⚠ ${w}</div>`).join('')
+    + '<div class="warn" style="background:rgba(126,231,135,.1);border-color:rgba(126,231,135,.4);color:#a9f0b0">✔ 배정 완료 — <b>② 배정 결과</b> 탭을 확인하세요.</div>';
+
+  renderResult(); renderPlay(); save();
+  $$('nav button')[1].click();
+};
+
+/* ---------------- 결과 렌더 ---------------- */
+function renderResult(){
+  if(!state.assign.length) return;
+  const order = {mafia:0, neutral:1, citizen:2};
+  const rows = [...state.assign].sort((a,b)=>order[R(a.roleId).team]-order[R(b.roleId).team] || R(a.roleId).name.localeCompare(R(b.roleId).name));
+  $('#resultTable').innerHTML = `<table><tr><th>#</th><th>닉네임</th><th>진영</th><th>직업</th><th>능력</th></tr>`+
+    rows.map((a,i)=>{ const r=R(a.roleId); return `<tr><td>${i+1}</td><td><b>${esc(a.name)}</b></td>
+      <td><span class="badge b-${r.team}">${TEAMNAME[r.team]}</span></td>
+      <td><b>${r.name}</b></td><td class="muted">${r.desc}</td></tr>`; }).join('')+`</table>`;
+
+  // 개인 DM
+  const mafiaMates = state.assign.filter(a=>R(a.roleId).team==='mafia');
+  $('#outDM').textContent = state.assign.map(a=>{
+    const r=R(a.roleId);
+    let t = `━━━━━━━━━━━━━━━\n[ ${a.name} 님 ]\n진영: ${TEAMNAME[r.team]}\n직업: ${r.name}\n능력: ${r.desc}\n승리조건: ${TEAMWIN[r.team]}`;
+    if(r.team==='mafia' && mafiaMates.length>1)
+      t += `\n팀원: ${mafiaMates.map(m=>`${m.name}(${R(m.roleId).name})`).join(', ')}`;
+    return t;
+  }).join('\n')+'\n━━━━━━━━━━━━━━━';
+
+  // 마피아 단톡
+  $('#outMafia').textContent = mafiaMates.length
+    ? `[마피아 팀]\n${mafiaMates.map(m=>`· ${m.name} — ${R(m.roleId).name}\n   ${R(m.roleId).desc}`).join('\n')}\n\n승리조건: ${TEAMWIN.mafia}`
+    : '(마피아 없음)';
+
+  // 전체 공지
+  const cnt = {};
+  state.assign.forEach(a=>{ const n=R(a.roleId).name; cnt[n]=(cnt[n]||0)+1; });
+  const byTeam = t => state.assign.filter(a=>R(a.roleId).team===t).length;
+  const listOf = t => Object.entries(cnt).filter(([n])=>ROLES.find(r=>r.name===n).team===t)
+      .map(([n,c])=>c>1?`${n} x${c}`:n).join(', ') || '없음';
+  $('#outPublic').textContent =
+`[이세밴 마피아] 이번 판 구성 (${state.assign.length}명)
+
+▪ 마피아 팀 ${byTeam('mafia')}명
+  ${listOf('mafia')}
+▪ 시민 팀 ${byTeam('citizen')}명
+  ${listOf('citizen')}
+▪ 중립 ${byTeam('neutral')}명
+  ${listOf('neutral')}
+
+참여자: ${state.assign.map(a=>a.name).join(', ')}`;
+}
+const esc = s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ---------------- 진행 탭 ---------------- */
+function alive(){ return state.assign.filter(a=>!state.dead[a.name]); }
+function renderPlay(){
+  if(!state.assign.length) return;
+  $('#alivePlist').innerHTML = state.assign.map(a=>
+    `<div class="p ${state.dead[a.name]?'dead':''}" data-n="${esc(a.name)}">
+       <span class="badge b-${R(a.roleId).team}">${R(a.roleId).name}</span>
+       <span>${esc(a.name)}</span></div>`).join('');
+  $$('#alivePlist .p').forEach(el=>el.onclick=()=>{
+    const n=el.dataset.n;
+    state.dead[n] = !state.dead[n];
+    addLog(`${n} — ${state.dead[n]?'<span class="no">사망 처리</span>':'<span class="ok">생존 처리</span>'}`);
+    renderPlay(); save();
+  });
+  $('#aliveN').textContent = alive().length;
+  $('#totalN').textContent = state.assign.length;
+
+  // 굴림 버튼
+  const btns=[];
+  state.assign.forEach(a=>{
+    const r=R(a.roleId);
+    (r.rolls||[]).forEach(x=>{
+      const key=`${a.name}|${x.label}`, used=state.uses[key]||0;
+      const over = x.limit && used>=x.limit;
+      btns.push(`<button class="btn ghost ${over?'':''}" data-roll="${esc(a.name)}|${esc(x.label)}|${x.p}|${x.limit||0}" ${over?'disabled style="opacity:.4"':''}>
+        <b>${esc(a.name)} · ${r.name}</b><i>${x.label} — ${x.p}%${x.limit?` (${used}/${x.limit}회 사용)`:''}</i></button>`);
+    });
+    (r.picks||[]).forEach(x=>{
+      btns.push(`<button class="btn ghost" data-pick="${esc(a.name)}|${esc(x.label)}|${x.n}">
+        <b>${esc(a.name)} · ${r.name}</b><i>${x.label}</i></button>`);
+    });
+  });
+  $('#rollBtns').innerHTML = btns.length?btns.join(''):'<div class="muted">이번 판에는 확률 판정이 필요한 직업이 없습니다.</div>';
+  $$('#rollBtns [data-roll]').forEach(b=>b.onclick=()=>{
+    const [name,label,p,limit]=b.dataset.roll.split('|');
+    const key=`${name}|${label}`;
+    state.uses[key]=(state.uses[key]||0)+1;
+    doRoll(+p, `${name} — ${label}`, limit>0?` (${state.uses[key]}/${limit}회)`:'');
+    renderPlay(); save();
+  });
+  $$('#rollBtns [data-pick]').forEach(b=>b.onclick=()=>{
+    const [name,label,n]=b.dataset.pick.split('|');
+    const pool = alive().map(a=>a.name);
+    if(!pool.length) return;
+    const picked = shuffle([...pool]).slice(0,+n);
+    addLog(`<b>${name}</b> — ${label} → 대상: <span class="no">${picked.join(', ')}</span>`);
+  });
+}
+function doRoll(p, title, suffix=''){
+  const v = Math.floor(Math.random()*100)+1;   // 1~100
+  const ok = v<=p;
+  addLog(`<b>${title}</b>${suffix} — ${p}% → 주사위 <b>${v}</b> → ${ok?'<span class="ok">성공</span>':'<span class="no">실패</span>'}`);
+}
+function addLog(html){
+  const t=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+  state.log.unshift({t,html});
+  renderLog(); save();
+}
+function renderLog(){
+  $('#log').innerHTML = state.log.length
+    ? state.log.map(l=>`<div><span class="t">${l.t}</span>${l.html}</div>`).join('')
+    : '<div class="muted">기록 없음</div>';
+  $('#logCopy').value = state.log.slice().reverse()
+    .map(l=>`[${l.t}] ${l.html.replace(/<[^>]+>/g,'')}`).join('\n');
+}
+$('#clearLog').onclick=()=>{ state.log=[]; renderLog(); save(); };
+$('#reviveAll').onclick=()=>{ state.dead={}; renderPlay(); save(); };
+$('#cusRoll').onclick=()=>doRoll(+$('#cusP').value, '수동 확률 판정');
+$('#cusPick').onclick=()=>{
+  const pool=alive().map(a=>a.name);
+  if(!pool.length) return;
+  const picked=shuffle([...pool]).slice(0,+$('#cusN').value);
+  addLog(`수동 무작위 추첨 → <span class="no">${picked.join(', ')}</span>`);
+};
+
+/* ---------------- 복사 ---------------- */
+$$('[data-copy]').forEach(b=>b.onclick=()=>{
+  const el=$('#'+b.dataset.copy);
+  const txt = el.tagName==='TEXTAREA'?el.value:el.textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const o=b.textContent; b.textContent='✔ 복사됨'; setTimeout(()=>b.textContent=o,1200);
+  }).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+    const o=b.textContent; b.textContent='✔ 복사됨'; setTimeout(()=>b.textContent=o,1200);
+  });
+});
+
+/* ---------------- 사전 ---------------- */
+function renderRef(){
+  const order={mafia:0,neutral:1,citizen:2};
+  $('#refTable').innerHTML='<table><tr><th>진영</th><th>직업</th><th>능력</th><th>자동 판정</th></tr>'+
+    [...ROLES].sort((a,b)=>order[a.team]-order[b.team]).map(r=>
+      `<tr><td><span class="badge b-${r.team}">${TEAMNAME[r.team]}</span></td>
+       <td><b>${r.name}</b>${r.filler?' <span class="muted">(기본)</span>':''}</td>
+       <td class="muted">${r.desc}</td>
+       <td class="muted">${[...(r.rolls||[]).map(x=>`${x.label} ${x.p}%${x.limit?` (최대 ${x.limit}회)`:''}`),
+                            ...(r.picks||[]).map(x=>x.label)].join('<br>')||'—'}</td></tr>`).join('')+'</table>';
+}
+
+/* ---------------- 저장 ---------------- */
+function save(){
+  try{ localStorage.setItem('isebandMafia', JSON.stringify({
+    players:$('#players').value, nM:$('#nMafia').value, nC:$('#nCitizen').value, nN:$('#nNeutral').value,
+    fc:$('#fillCitizen').checked, fm:$('#fillMafia').checked, ro:$('#ruleOn').checked,
+    rh:$('#rHit').value, rr:$('#rRep').value, rd:$('#rDet').value, state
+  })); }catch(e){}
+}
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem('isebandMafia')||'null'); if(!d) return;
+    $('#players').value=d.players||''; $('#nMafia').value=d.nM; $('#nCitizen').value=d.nC; $('#nNeutral').value=d.nN;
+    $('#fillCitizen').checked=d.fc; $('#fillMafia').checked=d.fm; $('#ruleOn').checked=d.ro;
+    if(d.rh) $('#rHit').value=d.rh; if(d.rr) $('#rRep').value=d.rr; if(d.rd) $('#rDet').value=d.rd;
+    if(d.state){ state=Object.assign(state,d.state); ROLES.forEach(r=>{ if(!r.filler && !state.mode[r.id]) state.mode[r.id]='auto'; }); }
+  }catch(e){}
+}
+['fillCitizen','fillMafia','ruleOn','rHit','rRep','rDet'].forEach(id=>$('#'+id).addEventListener('change',save));
+
+/* ---------------- 시작 ---------------- */
+fillRuleSelects(); load(); renderRoleGrid(); renderRef(); updCount();
+renderResult(); renderPlay(); renderLog();
+</script>
+</body>
+</html>
