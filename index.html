@@ -714,7 +714,11 @@ $('#doAssign').onclick = ()=>{
 
 /* ================= 결과 ================= */
 function renderResult(){
-  if(!state.assign.length) return;
+  if(!state.assign.length){
+    $('#resultTable').innerHTML='<div class="muted">아직 배정하지 않았습니다.</div>';
+    $('#outMafia').textContent=''; $('#outPublic').textContent='';
+    return;
+  }
   const order={mafia:0,neutral:1,citizen:2};
   const rows=[...state.assign].sort((a,b)=>order[R(a.roleId).team]-order[R(b.roleId).team] || R(a.roleId).name.localeCompare(R(b.roleId).name));
   $('#resultTable').innerHTML = '<table><tr><th>#</th><th>닉네임</th><th>진영</th><th>직업</th><th>능력</th></tr>'+
@@ -758,7 +762,13 @@ function dmTextFor(a){
   return t;
 }
 function renderDM(){
-  if(!state.assign.length) return;
+  if(!state.assign.length){
+    $('#dmList').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+    $('#sentN').textContent=0; $('#sentT').textContent=0;
+    $('#dmText').textContent='참여자를 선택해 주세요.';
+    $('#dmCopy').disabled=true; $('#dmCopy').textContent='이 사람 문구 복사';
+    return;
+  }
   $('#dmList').innerHTML = state.assign.map((a,i)=>{
     const r=R(a.roleId);
     return `<button class="pi ${state.sel===i?'sel':''}" data-i="${i}">
@@ -818,7 +828,12 @@ function setPhase(p){
 $('#phasePrev').onclick=()=>setPhase(state.phase-1);
 $('#phaseNext').onclick=()=>setPhase(state.phase+1);
 function renderPlay(){
-  if(!state.assign.length) return;
+  if(!state.assign.length){
+    $('#alivePlist').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+    $('#rollBtns').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+    $('#aliveN').textContent=0; $('#totalN').textContent=0;
+    return;
+  }
   $('#alivePlist').innerHTML = state.assign.map(a=>{
     const r=R(a.roleId);
     return `<div class="pc ${state.dead[a.name]?'dead':''}" data-n="${esc(a.name)}">
@@ -887,9 +902,7 @@ function resetGame(){
   state.assign=[]; state.dead={}; state.uses={}; state.sent={};
   state.log=[]; state.sel=null; state.phase=0;
   $('#msg').innerHTML='';
-  $('#alivePlist').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
-  $('#rollBtns').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
-  renderPhase(); renderAll(); save();
+  renderAll(); save();
 }
 $('#resetGame').onclick=()=>{
   if(!confirm('판을 초기화합니다. 배정 결과와 판정 기록이 모두 지워지고, 접속한 모든 기기에 적용됩니다. 계속할까요?')) return;
