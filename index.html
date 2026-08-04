@@ -130,13 +130,6 @@
   hr{border:0;border-top:1px solid var(--line);margin:13px 0}
   .stack{display:flex;flex-direction:column;gap:10px}
 
-  .chip{display:inline-block;margin-left:7px;padding:2px 8px;border-radius:20px;font-size:11px;
-    font-weight:600;background:var(--bg4);color:var(--tx2);border:1px solid var(--line2);vertical-align:middle}
-  .chip.live{color:var(--ok);border-color:#2a4235;background:#111a15}
-  .chip.wait{color:var(--neu);border-color:#43371f;background:#1a1610}
-  .code{font-family:Consolas,monospace;font-size:15px;letter-spacing:1.5px;font-weight:700;
-    background:var(--bg4);border:1px solid var(--line2);border-radius:7px;padding:5px 11px;color:var(--tx)}
-
   .phasebar{display:flex;gap:9px;align-items:stretch}
   .phasenow{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
     background:var(--bg4);border:1px solid var(--line2);border-radius:8px;
@@ -166,13 +159,7 @@
 
 <!-- ============ 설정 ============ -->
 <section class="tab on" id="tab-setup">
-  <div class="card">
-    <h2>실시간 동기화 <span class="chip" id="syncChip">연결 중…</span></h2>
-    <p class="cap">이 사이트를 연 모든 기기가 같은 진행 상태를 자동으로 함께 봅니다. 따로 설정할 것은 없습니다.</p>
-    <div class="note bad">모두가 같은 화면을 공유합니다. 참여자에게 이 주소를 알려주면 누가 마피아인지 전부 보입니다. 사회자끼리만 사용하세요.</div>
-    <div class="muted">동시에 두 사람이 조작하면 나중에 누른 쪽이 반영됩니다.</div>
-    <div id="syncErr"></div>
-  </div>
+  <div id="syncErr"></div>
 
   <div class="card">
     <h2>참여자</h2>
@@ -245,12 +232,6 @@
     <pre class="out" id="outMafia"></pre>
   </div>
 
-  <div class="card">
-    <h2>전체 공지용</h2>
-    <p class="cap">누가 무엇인지는 밝히지 않고 구성만 공개합니다.</p>
-    <div class="bar"><button class="btn ghost sm" data-copy="outPublic">복사</button></div>
-    <pre class="out" id="outPublic"></pre>
-  </div>
 </section>
 
 <!-- ============ 통보 문구 ============ -->
@@ -739,7 +720,7 @@ $('#doAssign').onclick = ()=>{
 function renderResult(){
   if(!state.assign.length){
     $('#resultTable').innerHTML='<div class="muted">아직 배정하지 않았습니다.</div>';
-    $('#outMafia').textContent=''; $('#outPublic').textContent='';
+    $('#outMafia').textContent='';
     return;
   }
   const order={mafia:0,neutral:1,citizen:2};
@@ -753,24 +734,6 @@ function renderResult(){
   $('#outMafia').textContent = mates.length
     ? `[마피아 팀]\n${mates.map(m=>`· ${m.name} — ${R(m.roleId).emoji} ${R(m.roleId).name}\n  ${R(m.roleId).desc}`).join('\n')}\n\n승리조건: ${TEAMWIN.mafia}`
     : '(마피아 없음)';
-
-  const cnt={}; state.assign.forEach(a=>{const n=R(a.roleId).name; cnt[n]=(cnt[n]||0)+1;});
-  const byTeam=t=>state.assign.filter(a=>R(a.roleId).team===t).length;
-  const listOf=t=>Object.entries(cnt).filter(([n])=>ROLES.find(r=>r.name===n).team===t)
-      .map(([n,c])=>c>1?`${n} x${c}`:n).join(', ')||'없음';
-  $('#outPublic').textContent =
-`[이세밴 마피아] 이번 판 구성 (${state.assign.length}명)
-
-마피아 ${byTeam('mafia')}명
-${listOf('mafia')}
-
-시민 ${byTeam('citizen')}명
-${listOf('citizen')}
-
-중립 ${byTeam('neutral')}명
-${listOf('neutral')}
-
-참여자: ${state.assign.map(a=>a.name).join(', ')}`;
 }
 
 /* ================= 통보 문구 ================= */
@@ -1047,16 +1010,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const ROOM = 'iseband-main';   // 방은 하나로 고정
 
 const SYNC = {
-  db:null, ref:null, ready:false,
-  applying:false, timer:null, connected:false,
+  db:null, ref:null, ready:false, applying:false, timer:null,
   me: Math.random().toString(36).slice(2,10) + Date.now().toString(36)
 };
 
-function syncUI(){
-  const chip=$('#syncChip');
-  chip.className='chip'+(SYNC.connected?' live':' wait');
-  chip.textContent = SYNC.connected?'연결됨':'연결 중…';
-}
 function syncErr(m){
   $('#syncErr').innerHTML = m?`<div class="note bad">${m}</div>`:'';
 }
@@ -1075,7 +1032,6 @@ async function syncInit(){
   }
   if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   SYNC.db = firebase.database();
-  SYNC.db.ref('.info/connected').on('value', s=>{ SYNC.connected=!!s.val(); syncUI(); });
   SYNC.ready = true;
 }
 async function syncOpen(){
@@ -1083,7 +1039,6 @@ async function syncOpen(){
   try{
     await syncInit();
     SYNC.ref = SYNC.db.ref('rooms/'+ROOM);
-    syncUI();
 
     SYNC.ref.on('value', snap=>{
       const v=snap.val();
@@ -1100,7 +1055,7 @@ async function syncOpen(){
     });
   }catch(e){
     syncErr(esc(e.message));
-    SYNC.ref=null; syncUI();
+    SYNC.ref=null;
   }
 }
 function syncWrite(){
@@ -1118,7 +1073,7 @@ function syncPush(){
 function renderAll(){ renderPhase(); renderResult(); renderDM(); renderPlay(); renderLog(); }
 fillRuleSelects(); load(); renderRoleGrid(); renderRef(); updCount(); renderAll();
 
-syncUI(); syncOpen();
+syncOpen();
 </script>
 </body>
 </html>
