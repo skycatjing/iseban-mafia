@@ -136,6 +136,15 @@
   .chip.wait{color:var(--neu);border-color:#43371f;background:#1a1610}
   .code{font-family:Consolas,monospace;font-size:15px;letter-spacing:1.5px;font-weight:700;
     background:var(--bg4);border:1px solid var(--line2);border-radius:7px;padding:5px 11px;color:var(--tx)}
+
+  .phasebar{display:flex;gap:9px;align-items:stretch}
+  .phasenow{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--bg4);border:1px solid var(--line2);border-radius:8px;
+    padding:9px 12px;font-size:16px;font-weight:700;color:var(--tx)}
+  .phasenow.day{border-color:#43371f;background:#1a1610;color:var(--neu)}
+  .log .ph{display:inline-block;margin-right:8px;padding:1px 7px;border-radius:20px;font-size:10.5px;
+    font-weight:700;background:var(--bg4);color:var(--tx2);border:1px solid var(--line2)}
+  .log .ph.day{color:var(--neu);border-color:#43371f;background:#1a1610}
 </style>
 </head>
 <body>
@@ -158,28 +167,10 @@
 <!-- ============ 설정 ============ -->
 <section class="tab on" id="tab-setup">
   <div class="card">
-    <h2>실시간 동기화 <span class="chip" id="syncChip">오프라인</span></h2>
-    <p class="cap">방 코드를 공유하면 다른 기기·공동 사회자와 같은 진행 상태를 실시간으로 함께 봅니다.</p>
-
-    <div id="syncOff" style="display:none">
-      <div class="bar">
-        <button class="btn ghost sm" id="syncCreate">방 만들기</button>
-        <input id="joinCode" placeholder="방 코드 입력" style="width:150px;padding:6px 10px;font-size:12px">
-        <button class="btn ghost sm" id="syncJoin">참여</button>
-      </div>
-      <div class="muted">방에 참여하면 이 기기의 현재 내용은 방의 내용으로 덮어써집니다.</div>
-    </div>
-
-    <div id="syncOn" style="display:none">
-      <div class="bar">
-        <span class="muted">방 코드</span>
-        <code class="code" id="roomCode"></code>
-        <button class="btn ghost sm" id="codeCopy">복사</button>
-        <span class="sp"></span>
-        <button class="btn ghost sm" id="syncLeave">연결 해제</button>
-      </div>
-      <div class="note bad">방 코드는 비밀번호와 같습니다. 참여자에게 절대 알려주지 마세요. 코드를 아는 사람은 누가 마피아인지 전부 볼 수 있습니다.</div>
-    </div>
+    <h2>실시간 동기화 <span class="chip" id="syncChip">연결 중…</span></h2>
+    <p class="cap">이 사이트를 연 모든 기기가 같은 진행 상태를 자동으로 함께 봅니다. 따로 설정할 것은 없습니다.</p>
+    <div class="note bad">모두가 같은 화면을 공유합니다. 참여자에게 이 주소를 알려주면 누가 마피아인지 전부 보입니다. 사회자끼리만 사용하세요.</div>
+    <div class="muted">동시에 두 사람이 조작하면 나중에 누른 쪽이 반영됩니다.</div>
     <div id="syncErr"></div>
   </div>
 
@@ -287,6 +278,17 @@
 <!-- ============ 진행 ============ -->
 <section class="tab" id="tab-play">
   <div class="card">
+    <h2>진행 시점</h2>
+    <p class="cap">배정 직후가 <b>1번째 밤</b>입니다. 밤 → 낮 → 다음 밤 순으로 넘기세요.</p>
+    <div class="phasebar">
+      <button class="btn ghost sm" id="phasePrev">◀ 이전</button>
+      <div class="phasenow" id="phaseNow">1번째 밤</div>
+      <button class="btn ghost sm" id="phaseNext">다음 ▶</button>
+    </div>
+    <div class="muted" style="margin-top:9px">여기서 넘긴 시점이 아래 판정 기록에 함께 남습니다.</div>
+  </div>
+
+  <div class="card">
     <h2>생존자</h2>
     <p class="cap">이름을 누르면 사망 / 생존이 전환됩니다.</p>
     <div class="pgrid" id="alivePlist"><div class="muted">배정 후 표시됩니다.</div></div>
@@ -320,6 +322,19 @@
     </div>
     <div class="log" id="log"></div>
     <textarea id="logCopy" style="display:none"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>초기화</h2>
+    <p class="cap">모든 기기에 함께 적용됩니다. 되돌릴 수 없습니다.</p>
+    <div class="bar">
+      <button class="btn ghost sm" id="resetGame">판 초기화</button>
+      <button class="btn ghost sm" id="resetAll">전체 초기화</button>
+    </div>
+    <div class="muted">
+      <b>판 초기화</b> — 배정 결과 · 생사 · 능력 사용 횟수 · 통보 체크 · 판정 기록을 지우고 1번째 밤으로 되돌립니다. 참여자 명단과 설정은 그대로 둡니다.<br>
+      <b>전체 초기화</b> — 참여자 명단과 직업 설정까지 처음 상태로 되돌립니다.
+    </div>
   </div>
 </section>
 
@@ -556,8 +571,11 @@ const TEAMWIN = {
 };
 
 /* ================= 상태 ================= */
-let state = { mode:{}, assign:[], dead:{}, sent:{}, log:[], uses:{}, sel:null };
+let state = { mode:{}, assign:[], dead:{}, sent:{}, log:[], uses:{}, sel:null, phase:0 };
 ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]='auto'; });
+
+/* 페이즈: 0 = 첫 번째 밤, 1 = 첫 번째 낮, 2 = 두 번째 밤 … */
+const phaseLabel = p => `${Math.floor(p/2)+1}번째 ${p%2 ? '낮' : '밤'}`;
 
 const $  = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
@@ -681,6 +699,7 @@ $('#doAssign').onclick = ()=>{
   const ppl = shuffle([...players]);
   state.assign = ppl.map((name,i)=>({name, roleId: all[i].id}));
   state.dead={}; state.uses={}; state.sent={}; state.sel=null;
+  state.phase=0; state.log=[];
 
   if(nM>0 && !mafiaRoles.some(r=>['mafia','lilpa'].includes(r.id)))
     warns.push('마피아 팀에 기본 사살 능력자(마피아 · 행동대장 릴파)가 없습니다. 진행 방식을 확인해 주세요.');
@@ -783,6 +802,21 @@ $('#dmCopyAll').onclick=function(){
 
 /* ================= 진행 ================= */
 const alive = ()=>state.assign.filter(a=>!state.dead[a.name]);
+
+function renderPhase(){
+  const el=$('#phaseNow');
+  el.textContent = phaseLabel(state.phase);
+  el.className = 'phasenow' + (state.phase%2 ? ' day' : '');
+  $('#phasePrev').disabled = state.phase===0;
+}
+function setPhase(p){
+  if(p<0) return;
+  state.phase = p;
+  renderPhase();
+  addLog(`<b>${phaseLabel(p)}</b> 시작`);
+}
+$('#phasePrev').onclick=()=>setPhase(state.phase-1);
+$('#phaseNext').onclick=()=>setPhase(state.phase+1);
 function renderPlay(){
   if(!state.assign.length) return;
   $('#alivePlist').innerHTML = state.assign.map(a=>{
@@ -834,18 +868,43 @@ function doRoll(p,title,suffix='',okText=null){
     + (ok&&okText?`<div class="muted" style="margin-top:5px;white-space:pre-wrap">${esc(okText)}</div>`:''));
 }
 function addLog(html){
-  state.log.unshift({t:new Date().toLocaleTimeString('ko-KR',{hour12:false}), html});
+  state.log.unshift({t:new Date().toLocaleTimeString('ko-KR',{hour12:false}), html, p:state.phase});
   renderLog(); save();
 }
+function logPhase(l){ return phaseLabel(l.p||0); }
 function renderLog(){
   $('#log').innerHTML = state.log.length
-    ? state.log.map(l=>`<div class="li"><span class="t">${l.t}</span>${l.html}</div>`).join('')
+    ? state.log.map(l=>`<div class="li"><span class="ph${(l.p||0)%2?' day':''}">${logPhase(l)}</span>`
+        + `<span class="t">${l.t}</span>${l.html}</div>`).join('')
     : '<div class="li muted">기록 없음</div>';
   $('#logCopy').value = state.log.slice().reverse()
-    .map(l=>`[${l.t}] ${l.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}`).join('\n');
+    .map(l=>`[${logPhase(l)} ${l.t}] ${l.html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}`).join('\n');
 }
 $('#clearLog').onclick=()=>{ state.log=[]; renderLog(); save(); };
 $('#reviveAll').onclick=()=>{ state.dead={}; renderPlay(); save(); };
+
+function resetGame(){
+  state.assign=[]; state.dead={}; state.uses={}; state.sent={};
+  state.log=[]; state.sel=null; state.phase=0;
+  $('#msg').innerHTML='';
+  $('#alivePlist').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+  $('#rollBtns').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+  renderPhase(); renderAll(); save();
+}
+$('#resetGame').onclick=()=>{
+  if(!confirm('판을 초기화합니다. 배정 결과와 판정 기록이 모두 지워지고, 접속한 모든 기기에 적용됩니다. 계속할까요?')) return;
+  resetGame();
+};
+$('#resetAll').onclick=()=>{
+  if(!confirm('참여자 명단과 직업 설정까지 전부 초기화합니다. 접속한 모든 기기에 적용됩니다. 계속할까요?')) return;
+  $('#players').value='';
+  $('#nMafia').value=2; $('#nCitizen').value=6; $('#nNeutral').value=1;
+  $('#fillCitizen').checked=true; $('#fillMafia').checked=true; $('#ruleOn').checked=true;
+  fillRuleSelects();
+  state.mode={}; ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]='auto'; });
+  renderRoleGrid(); updCount();
+  resetGame();
+};
 $('#cusRoll').onclick=()=>doRoll(+$('#cusP').value,'수동 판정');
 $('#cusPick').onclick=()=>{
   const pool=alive().map(a=>a.name); if(!pool.length) return;
@@ -920,6 +979,7 @@ function applyData(d){
   state.mode = Object.assign({}, state.mode, s.mode||{});
   state.sent = s.sent||{}; state.uses = s.uses||{}; state.dead = s.dead||{};
   state.log  = s.log||[];  state.sel = (s.sel==null?null:s.sel);
+  state.phase = Math.max(0, s.phase|0);
   state.assign = (s.assign||[]).filter(a=>a && R(a.roleId));
   ROLES.forEach(r=>{ if(!r.filler && !state.mode[r.id]) state.mode[r.id]='auto'; });
   if(state.sel!=null && !state.assign[state.sel]) state.sel=null;
@@ -935,7 +995,7 @@ function load(){
 
 /* ================= 실시간 동기화 (Firebase Realtime Database) =================
    설정값(apiKey 등)은 브라우저에서 쓰라고 만들어진 값이라 공개되어도 무방합니다.
-   실제 방어선은 데이터베이스 보안 규칙이며, 방 코드가 사실상 비밀번호 역할을 합니다. */
+   방은 하나로 고정이며, 이 주소를 아는 사람은 모두 같은 화면을 봅니다. */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyC8opIweJU7WS2ogpn9Y8HmyXe4hzdmHP8",
   authDomain: "iseband-mafia-7ea54.firebaseapp.com",
@@ -946,21 +1006,18 @@ const FIREBASE_CONFIG = {
   appId: "1:711200670435:web:3c4687ef469e6c2ae8bbd6"
 };
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const ROOM = 'iseband-main';   // 방은 하나로 고정
 
 const SYNC = {
-  cfg:FIREBASE_CONFIG, db:null, ref:null, code:null, ready:false,
+  db:null, ref:null, ready:false,
   applying:false, timer:null, connected:false,
   me: Math.random().toString(36).slice(2,10) + Date.now().toString(36)
 };
 
 function syncUI(){
-  const on=!!SYNC.code;
-  $('#syncOff').style.display   = on?'none':'block';
-  $('#syncOn').style.display    = on?'block':'none';
   const chip=$('#syncChip');
-  chip.className='chip'+(on?(SYNC.connected?' live':' wait'):'');
-  chip.textContent = on ? (SYNC.connected?'연결됨':'연결 중…') : '오프라인';
-  if(on) $('#roomCode').textContent=SYNC.code;
+  chip.className='chip'+(SYNC.connected?' live':' wait');
+  chip.textContent = SYNC.connected?'연결됨':'연결 중…';
 }
 function syncErr(m){
   $('#syncErr').innerHTML = m?`<div class="note bad">${m}</div>`:'';
@@ -978,27 +1035,17 @@ async function syncInit(){
     await loadScript(SDK+'firebase-app-compat.js');
     await loadScript(SDK+'firebase-database-compat.js');
   }
-  if(!firebase.apps.length) firebase.initializeApp(SYNC.cfg);
+  if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   SYNC.db = firebase.database();
   SYNC.db.ref('.info/connected').on('value', s=>{ SYNC.connected=!!s.val(); syncUI(); });
   SYNC.ready = true;
 }
-function newCode(){
-  const c='abcdefghjkmnpqrstuvwxyz23456789', a=new Uint32Array(8);
-  crypto.getRandomValues(a);
-  return [...a].map(x=>c[x%c.length]).join('');
-}
-async function syncOpen(code, seed){
+async function syncOpen(){
   syncErr('');
   try{
     await syncInit();
-    SYNC.code = code;
-    SYNC.ref = SYNC.db.ref('rooms/'+code);
-    localStorage.setItem('isebandRoom', code);
+    SYNC.ref = SYNC.db.ref('rooms/'+ROOM);
     syncUI();
-
-    // set() 은 연결될 때까지 완료되지 않으므로 기다리지 않는다
-    if(seed) syncWrite();
 
     SYNC.ref.on('value', snap=>{
       const v=snap.val();
@@ -1009,13 +1056,13 @@ async function syncOpen(code, seed){
       SYNC.applying = false;
       try{ localStorage.setItem('isebandMafia', JSON.stringify(snapshot())); }catch(e){}
     }, e=>{
-      syncErr('방을 읽지 못했습니다. 보안 규칙과 방 코드를 확인해 주세요. ('+esc(e.message)+')');
-      syncLeave();
+      syncErr('진행 상태를 읽지 못했습니다. 보안 규칙을 확인해 주세요. ('+esc(e.message)+')');
+      if(SYNC.ref) SYNC.ref.off();
+      SYNC.ref=null;
     });
-    syncUI();
   }catch(e){
     syncErr(esc(e.message));
-    SYNC.code=null; SYNC.ref=null; localStorage.removeItem('isebandRoom'); syncUI();
+    SYNC.ref=null; syncUI();
   }
 }
 function syncWrite(){
@@ -1029,29 +1076,11 @@ function syncPush(){
   clearTimeout(SYNC.timer);
   SYNC.timer = setTimeout(syncWrite, 350);
 }
-function syncLeave(){
-  if(SYNC.ref) SYNC.ref.off();
-  SYNC.ref=null; SYNC.code=null;
-  localStorage.removeItem('isebandRoom');
-  syncUI();
-}
-
-$('#syncCreate').onclick=()=>syncOpen(newCode(), true);
-$('#syncJoin').onclick=()=>{
-  const c=$('#joinCode').value.trim().toLowerCase();
-  if(c.length<8) return syncErr('방 코드는 8자입니다.');
-  syncOpen(c, false);
-};
-$('#syncLeave').onclick=syncLeave;
-$('#codeCopy').onclick=function(){ copy(SYNC.code, this); };
-
 /* ================= 시작 ================= */
-function renderAll(){ renderResult(); renderDM(); renderPlay(); renderLog(); }
+function renderAll(){ renderPhase(); renderResult(); renderDM(); renderPlay(); renderLog(); }
 fillRuleSelects(); load(); renderRoleGrid(); renderRef(); updCount(); renderAll();
 
-syncUI();
-const savedRoom = localStorage.getItem('isebandRoom');
-if(savedRoom) syncOpen(savedRoom, false);
+syncUI(); syncOpen();
 </script>
 </body>
 </html>
