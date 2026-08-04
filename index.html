@@ -194,11 +194,14 @@
         <button class="btn ghost" id="autoFit" style="width:100%">자동 분배</button></div>
     </div>
     <hr>
-    <label class="chk"><input type="checkbox" id="fillCitizen" checked>
-      <span>시민 팀 남는 자리를 일반 <b>‘시민’</b>으로 채우기<br>
-      <span class="muted">끄면 전부 특수직업으로 채웁니다</span></span></label>
-    <label class="chk"><input type="checkbox" id="fillMafia" checked>
-      <span>마피아 팀 남는 자리를 일반 <b>‘마피아’</b>로 채우기</span></label>
+    <h2 style="margin-top:0">특수직업 인원</h2>
+    <p class="cap">각 팀에 특수직업을 몇 명 넣을지 정합니다. 남는 자리는 일반 <b>‘마피아’</b> · <b>‘시민’</b>으로 채워집니다.</p>
+    <div class="row">
+      <div><label>마피아 팀 특수직업</label><input type="number" id="sMafia" value="1" min="0"></div>
+      <div><label>시민 팀 특수직업</label><input type="number" id="sCitizen" value="4" min="0"></div>
+    </div>
+    <div class="muted" style="margin-top:9px" id="specNote"></div>
+    <div class="muted" style="margin-top:6px">중립은 일반 직업이 없어서 항상 전원 특수직업입니다.</div>
   </div>
 
   <div class="card">
@@ -607,12 +610,12 @@ function renderRoleGrid(){
     </div>`).join('');
   $$('#roleGrid select').forEach(s=>{
     s.value = state.mode[s.dataset.m];
-    s.onchange = ()=>{ state.mode[s.dataset.m]=s.value; renderRoleGrid(); save(); };
+    s.onchange = ()=>{ state.mode[s.dataset.m]=s.value; renderRoleGrid(); updCount(); save(); };
   });
 }
 $$('[data-all]').forEach(b=>b.onclick=()=>{
   ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]=b.dataset.all; });
-  renderRoleGrid(); save();
+  renderRoleGrid(); updCount(); save();
 });
 function parsePlayers(){
   return $('#players').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
@@ -621,8 +624,20 @@ function updCount(){
   const p=parsePlayers().length, s=+$('#nMafia').value + +$('#nCitizen').value + +$('#nNeutral').value;
   $('#pcount').textContent=p; $('#scount').textContent=s;
   $('#pmatch').innerHTML = p===0?'' : (p===s?'<span class="ok">· 일치</span>':'<span class="no">· 불일치</span>');
+
+  const line=(team,n,sp)=>{
+    const k=Math.max(0,Math.min(sp,n));
+    const avail=ROLES.filter(r=>r.team===team && !r.filler && state.mode[r.id]!=='ban').length;
+    return `${TEAMNAME[team]} ${n}명 = 특수 ${k} + 일반 ${n-k}`
+      + (sp>n ? ` <span class="no">(팀 인원 초과)</span>`
+      : k>avail ? ` <span class="no">(쓸 수 있는 특수직업 ${avail}종뿐)</span>` : '');
+  };
+  $('#specNote').innerHTML =
+    line('mafia', +$('#nMafia').value, +$('#sMafia').value) + '<br>'
+    + line('citizen', +$('#nCitizen').value, +$('#sCitizen').value);
 }
-['players','nMafia','nCitizen','nNeutral'].forEach(id=>$('#'+id).addEventListener('input',()=>{updCount();save();}));
+['players','nMafia','nCitizen','nNeutral','sMafia','sCitizen']
+  .forEach(id=>$('#'+id).addEventListener('input',()=>{updCount();save();}));
 $('#autoFit').onclick=()=>{
   const n=parsePlayers().length;
   if(!n) return alert('참여자를 먼저 입력해 주세요.');
@@ -632,27 +647,34 @@ $('#autoFit').onclick=()=>{
 };
 
 /* ================= 배정 ================= */
-function pickTeam(team, count, forced, banned, allowFiller, warns){
+function pickTeam(team, count, nSpecial, forced, banned, warns){
   const pool = ROLES.filter(r=>r.team===team && !r.filler);
   const filler = ROLES.find(r=>r.team===team && r.filler);
   const ban = new Set(banned), chosen=[];
-  const push = r => { if(r && chosen.length<count && !chosen.includes(r)) chosen.push(r); };
+  // 일반 직업이 있는 팀만 특수직업 수를 제한한다. 중립은 전원 특수직업.
+  const cap = filler ? Math.max(0, Math.min(nSpecial, count)) : count;
+  const push = r => { if(r && chosen.length<cap && !chosen.includes(r)) chosen.push(r); };
+
+  if(filler && nSpecial>count)
+    warns.push(`${TEAMNAME[team]} 팀 특수직업을 ${nSpecial}명으로 설정했지만 팀 인원이 ${count}명이라 ${count}명만 넣었습니다.`);
 
   forced.forEach(id=>{
     const r=pool.find(x=>x.id===id); if(!r) return;
-    if(chosen.length>=count){ warns.push(`자리가 부족해 <b>${r.name}</b>을(를) 넣지 못했습니다.`); return; }
+    if(chosen.length>=cap){ warns.push(`특수직업 자리가 부족해 <b>${r.name}</b>을(를) 넣지 못했습니다.`); return; }
     push(r);
   });
   shuffle(pool.filter(r=>state.mode[r.id]==='must' && !ban.has(r.id))).forEach(r=>{
     if(chosen.includes(r)) return;
-    if(chosen.length>=count){ warns.push(`자리가 부족해 고정 직업 <b>${r.name}</b>을(를) 넣지 못했습니다.`); return; }
+    if(chosen.length>=cap){ warns.push(`특수직업 자리가 부족해 고정 직업 <b>${r.name}</b>을(를) 넣지 못했습니다.`); return; }
     push(r);
   });
   shuffle(pool.filter(r=>state.mode[r.id]!=='ban' && !ban.has(r.id) && !chosen.includes(r))).forEach(r=>push(r));
 
+  if(filler && chosen.length<cap)
+    warns.push(`${TEAMNAME[team]} 팀에 쓸 수 있는 특수직업이 ${chosen.length}종뿐이라 특수직업 ${cap}명을 채우지 못했습니다. 나머지는 일반 <b>${filler.name}</b>입니다.`);
+
   if(chosen.length<count){
     if(filler){
-      if(!allowFiller) warns.push(`${TEAMNAME[team]} 팀에 배정 가능한 특수직업이 부족하여 <b>${filler.name}</b> ${count-chosen.length}명이 들어갔습니다.`);
       while(chosen.length<count) chosen.push(filler);
     }else{
       warns.fatal = `<b>중립</b>에 배정할 직업이 ${count-chosen.length}개 부족합니다. `
@@ -666,13 +688,14 @@ function pickTeam(team, count, forced, banned, allowFiller, warns){
 $('#doAssign').onclick = ()=>{
   const players=parsePlayers();
   const nM=+$('#nMafia').value, nC=+$('#nCitizen').value, nN=+$('#nNeutral').value;
+  const sM=+$('#sMafia').value, sC=+$('#sCitizen').value;
   const msg=$('#msg'); msg.innerHTML=''; const warns=[];
 
   if(!players.length) return msg.innerHTML='<div class="note bad">참여자 명단이 비어 있습니다.</div>';
   if(nM+nC+nN !== players.length)
     return msg.innerHTML=`<div class="note bad">진영 인원 합계 <b>${nM+nC+nN}명</b>과 참여자 수 <b>${players.length}명</b>이 다릅니다.</div>`;
 
-  const mafiaRoles = pickTeam('mafia', nM, [], [], $('#fillMafia').checked, warns);
+  const mafiaRoles = pickTeam('mafia', nM, sM, [], [], warns);
 
   const forcedC=[], bannedC=[]; let ruleNote='';
   if($('#ruleOn').checked){
@@ -688,8 +711,8 @@ $('#doAssign').onclick = ()=>{
       warns.push(`<b>${R(id).name}</b>은(는) 시민 팀이 아니어서 규칙으로 자동 포함되지 않았습니다. 직업별 설정에서 고정으로 지정해 주세요.`); });
   }
 
-  const citizenRoles = pickTeam('citizen', nC, forcedC.filter(id=>R(id).team==='citizen'), bannedC, $('#fillCitizen').checked, warns);
-  const neutralRoles = pickTeam('neutral', nN, [], [], false, warns);
+  const citizenRoles = pickTeam('citizen', nC, sC, forcedC.filter(id=>R(id).team==='citizen'), bannedC, warns);
+  const neutralRoles = pickTeam('neutral', nN, nN, [], [], warns);
   if(warns.fatal) return msg.innerHTML=`<div class="note bad">${warns.fatal}</div>`;
 
   const all = shuffle([...mafiaRoles, ...citizenRoles, ...neutralRoles]);
@@ -912,7 +935,7 @@ $('#resetAll').onclick=()=>{
   if(!confirm('참여자 명단과 직업 설정까지 전부 초기화합니다. 접속한 모든 기기에 적용됩니다. 계속할까요?')) return;
   $('#players').value='';
   $('#nMafia').value=2; $('#nCitizen').value=6; $('#nNeutral').value=1;
-  $('#fillCitizen').checked=true; $('#fillMafia').checked=true; $('#ruleOn').checked=true;
+  $('#sMafia').value=1; $('#sCitizen').value=4; $('#ruleOn').checked=true;
   fillRuleSelects();
   state.mode={}; ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]='auto'; });
   renderRoleGrid(); updCount();
@@ -976,7 +999,7 @@ $$('[data-copy]').forEach(b=>b.onclick=function(){
 function snapshot(){
   return {
     players:$('#players').value, nM:$('#nMafia').value, nC:$('#nCitizen').value, nN:$('#nNeutral').value,
-    fc:$('#fillCitizen').checked, fm:$('#fillMafia').checked, ro:$('#ruleOn').checked,
+    sM:$('#sMafia').value, sC:$('#sCitizen').value, ro:$('#ruleOn').checked,
     rh:$('#rHit').value, rr:$('#rRep').value, rd:$('#rDet').value, state
   };
 }
@@ -986,7 +1009,9 @@ function applyData(d){
   if(d.nM!=null) $('#nMafia').value=d.nM;
   if(d.nC!=null) $('#nCitizen').value=d.nC;
   if(d.nN!=null) $('#nNeutral').value=d.nN;
-  $('#fillCitizen').checked=d.fc!==false; $('#fillMafia').checked=d.fm!==false; $('#ruleOn').checked=d.ro!==false;
+  if(d.sM!=null) $('#sMafia').value=d.sM;
+  if(d.sC!=null) $('#sCitizen').value=d.sC;
+  $('#ruleOn').checked=d.ro!==false;
   if(d.rh) $('#rHit').value=d.rh; if(d.rr) $('#rRep').value=d.rr; if(d.rd) $('#rDet').value=d.rd;
   const s=d.state||{};
   state.mode = Object.assign({}, state.mode, s.mode||{});
@@ -1004,7 +1029,7 @@ function save(){
 function load(){
   try{ applyData(JSON.parse(localStorage.getItem('isebandMafia')||'null')); }catch(e){}
 }
-['fillCitizen','fillMafia','ruleOn','rHit','rRep','rDet'].forEach(id=>$('#'+id).addEventListener('change',save));
+['ruleOn','rHit','rRep','rDet'].forEach(id=>$('#'+id).addEventListener('change',save));
 
 /* ================= 실시간 동기화 (Firebase Realtime Database) =================
    설정값(apiKey 등)은 브라우저에서 쓰라고 만들어진 값이라 공개되어도 무방합니다.
