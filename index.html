@@ -161,23 +161,11 @@
     <h2>실시간 동기화 <span class="chip" id="syncChip">오프라인</span></h2>
     <p class="cap">방 코드를 공유하면 다른 기기·공동 사회자와 같은 진행 상태를 실시간으로 함께 봅니다.</p>
 
-    <div id="syncNoCfg" style="display:none">
-      <div class="note">
-        아직 파이어베이스 설정이 없습니다. 아래에 설정 JSON을 붙여넣으면 동기화를 쓸 수 있습니다.
-        설정값은 이 브라우저에만 저장됩니다.
-      </div>
-      <textarea id="cfgInput" style="min-height:110px;font-family:Consolas,monospace;font-size:12px"
-        placeholder='{ "apiKey": "...", "authDomain": "...", "databaseURL": "https://....firebasedatabase.app", "projectId": "..." }'></textarea>
-      <div class="bar" style="margin-top:9px"><button class="btn ghost sm" id="cfgSave">설정 저장</button></div>
-    </div>
-
     <div id="syncOff" style="display:none">
       <div class="bar">
         <button class="btn ghost sm" id="syncCreate">방 만들기</button>
         <input id="joinCode" placeholder="방 코드 입력" style="width:150px;padding:6px 10px;font-size:12px">
         <button class="btn ghost sm" id="syncJoin">참여</button>
-        <span class="sp"></span>
-        <button class="btn ghost sm" id="cfgEdit">설정 변경</button>
       </div>
       <div class="muted">방에 참여하면 이 기기의 현재 내용은 방의 내용으로 덮어써집니다.</div>
     </div>
@@ -948,23 +936,26 @@ function load(){
 /* ================= 실시간 동기화 (Firebase Realtime Database) =================
    설정값(apiKey 등)은 브라우저에서 쓰라고 만들어진 값이라 공개되어도 무방합니다.
    실제 방어선은 데이터베이스 보안 규칙이며, 방 코드가 사실상 비밀번호 역할을 합니다. */
-const FIREBASE_CONFIG = null;   // 배포본에 설정을 심으려면 여기에 객체를 넣으세요
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC8opIweJU7WS2ogpn9Y8HmyXe4hzdmHP8",
+  authDomain: "iseband-mafia-7ea54.firebaseapp.com",
+  databaseURL: "https://iseband-mafia-7ea54-default-rtdb.firebaseio.com",
+  projectId: "iseband-mafia-7ea54",
+  storageBucket: "iseband-mafia-7ea54.firebasestorage.app",
+  messagingSenderId: "711200670435",
+  appId: "1:711200670435:web:3c4687ef469e6c2ae8bbd6"
+};
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
 const SYNC = {
-  cfg:null, db:null, ref:null, code:null, ready:false,
+  cfg:FIREBASE_CONFIG, db:null, ref:null, code:null, ready:false,
   applying:false, timer:null, connected:false,
   me: Math.random().toString(36).slice(2,10) + Date.now().toString(36)
 };
 
-function getCfg(){
-  if(FIREBASE_CONFIG) return FIREBASE_CONFIG;
-  try{ return JSON.parse(localStorage.getItem('isebandFirebase')||'null'); }catch(e){ return null; }
-}
 function syncUI(){
-  const has=!!SYNC.cfg, on=!!SYNC.code;
-  $('#syncNoCfg').style.display = has?'none':'block';
-  $('#syncOff').style.display   = (has&&!on)?'block':'none';
+  const on=!!SYNC.code;
+  $('#syncOff').style.display   = on?'none':'block';
   $('#syncOn').style.display    = on?'block':'none';
   const chip=$('#syncChip');
   chip.className='chip'+(on?(SYNC.connected?' live':' wait'):'');
@@ -983,8 +974,6 @@ function loadScript(src){
 }
 async function syncInit(){
   if(SYNC.ready) return;
-  if(!SYNC.cfg) throw new Error('파이어베이스 설정이 없습니다.');
-  if(!SYNC.cfg.databaseURL) throw new Error('설정에 databaseURL 이 없습니다. Realtime Database 를 만들었는지 확인해 주세요.');
   if(typeof firebase==='undefined'){
     await loadScript(SDK+'firebase-app-compat.js');
     await loadScript(SDK+'firebase-database-compat.js');
@@ -1047,18 +1036,6 @@ function syncLeave(){
   syncUI();
 }
 
-$('#cfgSave').onclick=()=>{
-  try{
-    const c=JSON.parse($('#cfgInput').value);
-    if(!c.databaseURL) throw new Error('databaseURL 항목이 없습니다. Realtime Database 를 만든 뒤 설정을 다시 복사해 주세요.');
-    localStorage.setItem('isebandFirebase', JSON.stringify(c));
-    SYNC.cfg=c; syncErr(''); syncUI();
-  }catch(e){ syncErr('설정을 읽지 못했습니다: '+esc(e.message)); }
-};
-$('#cfgEdit').onclick=()=>{
-  $('#cfgInput').value = JSON.stringify(SYNC.cfg, null, 2);
-  SYNC.cfg=null; syncUI();
-};
 $('#syncCreate').onclick=()=>syncOpen(newCode(), true);
 $('#syncJoin').onclick=()=>{
   const c=$('#joinCode').value.trim().toLowerCase();
@@ -1072,9 +1049,9 @@ $('#codeCopy').onclick=function(){ copy(SYNC.code, this); };
 function renderAll(){ renderResult(); renderDM(); renderPlay(); renderLog(); }
 fillRuleSelects(); load(); renderRoleGrid(); renderRef(); updCount(); renderAll();
 
-SYNC.cfg = getCfg(); syncUI();
+syncUI();
 const savedRoom = localStorage.getItem('isebandRoom');
-if(SYNC.cfg && savedRoom) syncOpen(savedRoom, false);
+if(savedRoom) syncOpen(savedRoom, false);
 </script>
 </body>
 </html>
