@@ -383,13 +383,12 @@ const ROLES = [
 당신은 "🛡️ 뚤기" 입니다.
 너무나도 작아서 최대 2번 50퍼센트의 확률로 모든 죽음의 수단에서 살아남습니다!
 당신의 156만큼 작은 몸으로 죽음조차 발견 못하는지 운을 시험해보세요!`,
- // 밤·낮 어느 쪽으로 발동하든 최대 2회를 함께 쓴다 (useKey 공유)
- rolls:[
-   {label:'밤 · 마피아 습격 생존 판정', p:50, limit:2, useKey:'사망 위기 생존',
-    ok:`당신들은 바늘을 쏘아 맞출 수 있나요? 적어도 마피아들은 못하나 봅니다. {name}님이 마피아의 습격을 극복하였습니다`},
-   {label:'낮 · 투표 처형 생존 판정', p:50, limit:2, useKey:'사망 위기 생존',
-    ok:`수많은 이의 목숨을 앗아간 처형대의 칼날조차 단 한사람을 발견하지 못했습니다. {name} 님이 투표의 죽음을 극복했습니다.`}
- ]},
+ // ok 가 객체면 진행 시점이 밤이냐 낮이냐에 따라 멘트가 갈린다
+ rolls:[{label:'사망 위기 생존 판정', p:50, limit:2,
+   ok:{
+     night:`당신들은 바늘을 쏘아 맞출 수 있나요? 적어도 마피아들은 못하나 봅니다. {name}님이 마피아의 습격을 극복하였습니다`,
+     day:`수많은 이의 목숨을 앗아간 처형대의 칼날조차 단 한사람을 발견하지 못했습니다. {name} 님이 투표의 죽음을 극복했습니다.`
+   }}]},
 
 {id:'bat', name:'박쥐', emoji:'🦇', team:'citizen', noMsg:true,
  desc:'마피아 공격 시 사망하지 않고 마피아 편으로 변절 및 승리 조건 공유',
@@ -818,8 +817,11 @@ $('#dmCopyAll').onclick=function(){
 
 /* ================= 진행 ================= */
 const alive = ()=>state.assign.filter(a=>!state.dead[a.name]);
-/* useKey 가 같은 판정끼리는 사용 횟수를 공유한다 (예: 뚤기의 밤·낮 생존 판정) */
-const useKeyOf = (name, spec)=>`${name}|${spec.useKey||spec.label}`;
+/* 성공 멘트. 객체로 적힌 경우 지금이 밤인지 낮인지에 따라 고른다. */
+const okTextOf = (spec)=>{
+  if(!spec.ok) return null;
+  return typeof spec.ok==='string' ? spec.ok : (state.phase%2 ? spec.ok.day : spec.ok.night);
+};
 
 function renderPhase(){
   const el=$('#phaseNow');
@@ -858,7 +860,7 @@ function renderPlay(){
   state.assign.forEach(a=>{
     const r=R(a.roleId);
     (r.rolls||[]).forEach(x=>{
-      const key=useKeyOf(a.name,x), used=state.uses[key]||0, over=x.limit&&used>=x.limit;
+      const key=`${a.name}|${x.label}`, used=state.uses[key]||0, over=x.limit&&used>=x.limit;
       btns.push(`<button class="btn ghost" data-roll="${esc(a.name)}|${esc(x.label)}" ${over?'disabled':''}>
         <b>${esc(a.name)} · ${r.name}</b><i>${x.label} — ${x.p}%${x.limit?` (${used}/${x.limit})`:''}</i></button>`);
     });
@@ -873,10 +875,11 @@ function renderPlay(){
     const [name,label]=b.dataset.roll.split('|');
     const a=state.assign.find(x=>x.name===name), r=R(a.roleId);
     const spec=r.rolls.find(x=>x.label===label);
-    const key=useKeyOf(name,spec); state.uses[key]=(state.uses[key]||0)+1;
+    const key=`${name}|${label}`; state.uses[key]=(state.uses[key]||0)+1;
     const left = spec.limit ? spec.limit-state.uses[key] : null;
+    const okText = okTextOf(spec);
     doRoll(spec.p, `${name} — ${label}`, spec.limit?` (${state.uses[key]}/${spec.limit})`:'',
-           spec.ok ? spec.ok.replace('{left}', left).replace(/\{name\}/g, name) : null);
+           okText ? okText.replace('{left}', left).replace(/\{name\}/g, name) : null);
     renderPlay(); save();
   });
   $$('#rollBtns [data-pick]').forEach(b=>b.onclick=()=>{
@@ -936,8 +939,15 @@ $('#cusPick').onclick=()=>{
 const ABILS = [];
 ROLES.forEach(r=>{
   (r.lines||[]).forEach(l=>ABILS.push({title:`${r.emoji} ${r.name} — ${l.label}`, text:l.text}));
-  (r.rolls||[]).forEach(x=>{ if(x.ok) ABILS.push({title:`${r.emoji} ${r.name} — ${x.label} 성공`,
-    text:x.ok.replace('{left}','  ').replace(/\{name\}/g,'(닉네임)')}); });
+  (r.rolls||[]).forEach(x=>{
+    if(!x.ok) return;
+    const variants = typeof x.ok==='string' ? [['', x.ok]]
+                                            : [['밤', x.ok.night], ['낮', x.ok.day]];
+    variants.forEach(([when, text])=>{ if(!text) return;
+      ABILS.push({title:`${r.emoji} ${r.name} — ${x.label} 성공${when?` · ${when}`:''}`,
+                  text:text.replace('{left}','  ').replace(/\{name\}/g,'(닉네임)')});
+    });
+  });
 });
 function block(title, text, i, kind){
   return `<div>
@@ -947,17 +957,13 @@ function block(title, text, i, kind){
     </div>
     <pre class="out" style="max-height:none">${esc(text)}</pre></div>`;
 }
-/* 자동 판정 요약. useKey 를 공유하는 판정은 횟수를 함께 쓰므로 한 번만 표기한다. */
+/* 자동 판정 요약. ok 가 객체인 판정은 밤·낮 멘트가 갈린다는 표시를 붙인다. */
 function rollSummary(r){
-  const rolls=r.rolls||[], out=[];
-  rolls.forEach(x=>out.push(`${x.label} ${x.p}%${x.limit && !x.useKey ? ` (최대 ${x.limit}회)` : ''}`));
-  [...new Set(rolls.filter(x=>x.useKey && x.limit).map(x=>x.useKey))].forEach(k=>{
-    const g=rolls.filter(x=>x.useKey===k);
-    out.push(g.length>1 ? `└ 위 ${g.length}가지 합쳐 최대 ${g[0].limit}회`
-                        : `└ 최대 ${g[0].limit}회`);
-  });
-  (r.picks||[]).forEach(x=>out.push(x.label));
-  return out;
+  return [
+    ...(r.rolls||[]).map(x=>`${x.label} ${x.p}%${x.limit?` (최대 ${x.limit}회)`:''}`
+      + (x.ok && typeof x.ok==='object' ? ' <span class="muted">· 밤/낮 멘트 자동 구분</span>' : '')),
+    ...(r.picks||[]).map(x=>x.label)
+  ];
 }
 function renderRef(){
   $('#winList').innerHTML  = WINS.map((w,i)=>block(w.name, w.text, i, 'w')).join('');
