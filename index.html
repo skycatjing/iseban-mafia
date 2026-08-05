@@ -196,9 +196,9 @@
 
   <div class="card">
     <h2>직업 조합 규칙</h2>
-    <p class="cap">청부업자 · 기자 · 탐정의 동시 등장을 제어합니다.</p>
+    <p class="cap">기자와 탐정이 함께 나오지 않도록 제어합니다. 둘 중 하나만 등장합니다.</p>
     <label class="chk"><input type="checkbox" id="ruleOn" checked>
-      <span>청부업자가 나오면 <b>기자 제외 + 탐정 포함</b>, 청부업자가 없으면 <b>기자 + 탐정 모두 포함</b></span></label>
+      <span>청부업자가 나오면 <b>탐정 포함 + 기자 제외</b>, 청부업자가 없으면 <b>기자 포함 + 탐정 제외</b></span></label>
     <div class="row" style="margin-top:10px">
       <div><label>청부업자</label><select id="rHit"></select></div>
       <div><label>기자</label><select id="rRep"></select></div>
@@ -697,14 +697,19 @@ $('#doAssign').onclick = ()=>{
   if($('#ruleOn').checked){
     const hit=$('#rHit').value, rep=$('#rRep').value, det=$('#rDet').value;
     const hitIn = mafiaRoles.some(r=>r.id===hit);
-    forcedC.push(det);
-    if(hitIn){ bannedC.push(rep); ruleNote=`<b>${R(hit).name}</b> 포함 → <b>${R(rep).name}</b> 제외 · <b>${R(det).name}</b> 포함`; }
-    else     { forcedC.push(rep);  ruleNote=`<b>${R(hit).name}</b> 미포함 → <b>${R(rep).name}</b> · <b>${R(det).name}</b> 포함`; }
-    [det, hitIn?null:rep].filter(Boolean).forEach(id=>{
-      if(state.mode[id]==='ban') warns.push(`<b>${R(id).name}</b>은(는) 제외로 설정되어 있었지만 조합 규칙에 따라 포함되었습니다.`);
-    });
+    // 기자와 탐정은 함께 나오지 않는다. 청부업자가 있으면 탐정, 없으면 기자.
+    const inId = hitIn ? det : rep, outId = hitIn ? rep : det;
+    forcedC.push(inId);
+    if(outId!==inId) bannedC.push(outId);
+    ruleNote = `<b>${R(hit).name}</b> ${hitIn?'포함':'미포함'} → <b>${R(inId).name}</b> 포함 · <b>${R(outId).name}</b> 제외`;
+    if(state.mode[inId]==='ban')
+      warns.push(`<b>${R(inId).name}</b>은(는) 제외로 설정되어 있었지만 조합 규칙에 따라 포함되었습니다.`);
+    if(state.mode[outId]==='must')
+      warns.push(`<b>${R(outId).name}</b>은(는) 고정으로 설정되어 있었지만 조합 규칙에 따라 제외되었습니다.`);
     forcedC.forEach(id=>{ if(R(id).team!=='citizen')
       warns.push(`<b>${R(id).name}</b>은(는) 시민 팀이 아니어서 규칙으로 자동 포함되지 않았습니다. 직업별 설정에서 고정으로 지정해 주세요.`); });
+    if(R(outId).team!=='citizen')
+      warns.push(`<b>${R(outId).name}</b>은(는) 시민 팀이 아니어서 규칙으로 자동 제외되지 않았습니다. 직업별 설정에서 제외로 지정해 주세요.`);
   }
 
   const citizenRoles = pickTeam('citizen', nC, sC, forcedC.filter(id=>R(id).team==='citizen'), bannedC, warns);
