@@ -114,6 +114,22 @@
   .pc{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
     display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px}
   .pc.dead{opacity:.35;text-decoration:line-through}
+  .pc .flip{font-size:10px;font-weight:700;color:var(--neu);flex:none}
+
+  .bar select{width:auto}
+  .teamcount{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .teamcount span{background:var(--bg3);border:1px solid var(--line2);border-radius:7px;
+    padding:5px 10px;font-size:12.5px;font-weight:600}
+  .teamcount b{font-size:14px;margin-left:3px}
+
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:6px}
+  .vc{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+    display:flex;align-items:center;gap:6px;font-size:13px}
+  .vc .vn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vc .vv{margin-left:auto;min-width:20px;text-align:center;font-size:14px;
+    font-variant-numeric:tabular-nums}
+  .vc button{padding:3px 9px;font-size:13px;line-height:1.2;border-radius:6px}
+  .vc.top{border-color:var(--acc)}
 
   .rolls{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:7px}
   .rolls button{text-align:left;line-height:1.4;padding:10px 12px}
@@ -283,11 +299,55 @@
       생존 <b id="aliveN">0</b> / 전체 <b id="totalN">0</b>
       <button class="btn ghost sm" id="reviveAll" style="margin-left:8px">전원 생존으로</button>
     </div>
+    <div class="teamcount" id="teamCount"></div>
+  </div>
+
+  <div class="card">
+    <h2>진영 변경</h2>
+    <p class="cap">유혹(마담 징버거 중개)이나 박쥐 변절로 편이 바뀐 사람을 표시합니다. 위 생존자 수에 바로 반영됩니다.</p>
+    <div class="bar">
+      <select id="sideWho" style="min-width:160px"></select>
+      <select id="sideTo">
+        <option value="">원래 진영으로</option>
+        <option value="mafia">마피아 편으로</option>
+        <option value="citizen">시민 편으로</option>
+        <option value="neutral">중립으로</option>
+      </select>
+      <button class="btn ghost sm" id="sideApply">적용</button>
+    </div>
+    <div class="muted" id="sideNote">바뀐 사람 없음</div>
+  </div>
+
+  <div class="card">
+    <h2>능력 사용 기록</h2>
+    <p class="cap">누가 누구에게 능력을 썼는지 기록에 남깁니다. 지금 진행 시점(밤 / 낮)이 함께 붙습니다.</p>
+    <div class="bar">
+      <select id="useWho" style="min-width:160px"></select>
+      <select id="useWhat" style="min-width:150px"></select>
+      <select id="useTarget" style="min-width:160px"></select>
+      <button class="btn ghost sm" id="useLog">기록</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>투표 집계</h2>
+    <p class="cap">생존자별 득표수입니다. 하냥처럼 2표를 행사하는 사람이 투표하면 <b>+</b>를 두 번 누르세요.</p>
+    <div class="vgrid" id="voteList"><div class="muted">배정 후 표시됩니다.</div></div>
+    <div class="muted" style="margin-top:11px" id="voteSum"></div>
+    <div class="bar" style="margin-top:11px">
+      <button class="btn ghost sm" id="voteLog">집계 기록 후 비우기</button>
+      <button class="btn ghost sm" id="voteClear">비우기</button>
+    </div>
   </div>
 
   <div class="card">
     <h2>확률 판정</h2>
     <p class="cap">이번 판에 배정된 직업의 판정만 표시됩니다.</p>
+    <div class="bar">
+      <span class="muted">대상</span>
+      <select id="rollTarget" style="min-width:160px"></select>
+      <span class="muted">고르면 판정 기록에 함께 남습니다. 판정 후 자동으로 비워집니다.</span>
+    </div>
     <div class="rolls" id="rollBtns"><div class="muted">배정 후 표시됩니다.</div></div>
   </div>
 
@@ -567,7 +627,8 @@ const TEAMWIN = {
 };
 
 /* ================= 상태 ================= */
-let state = { mode:{}, assign:[], dead:{}, sent:{}, log:[], uses:{}, sel:null, phase:0 };
+/* side: 유혹·변절로 원래 직업과 다른 편이 된 사람 (이름 → 진영) */
+let state = { mode:{}, assign:[], dead:{}, sent:{}, log:[], uses:{}, sel:null, phase:0, side:{}, votes:{} };
 ROLES.forEach(r=>{ if(!r.filler) state.mode[r.id]='auto'; });
 
 /* 페이즈: 0 = 첫 번째 밤, 1 = 첫 번째 낮, 2 = 두 번째 밤 … */
@@ -722,7 +783,7 @@ $('#doAssign').onclick = ()=>{
   const ppl = shuffle([...players]);
   state.assign = ppl.map((name,i)=>({name, roleId: all[i].id}));
   state.dead={}; state.uses={}; state.sent={}; state.sel=null;
-  state.phase=0; state.log=[];
+  state.phase=0; state.log=[]; state.side={}; state.votes={};
 
   if(nM>0 && !mafiaRoles.some(r=>['mafia','lilpa'].includes(r.id)))
     warns.push('마피아 팀에 기본 사살 능력자(마피아 · 행동대장 릴파)가 없습니다. 진행 방식을 확인해 주세요.');
@@ -822,6 +883,125 @@ const okTextOf = (spec)=>{
   if(!spec.ok) return null;
   return typeof spec.ok==='string' ? spec.ok : (state.phase%2 ? spec.ok.day : spec.ok.night);
 };
+/* 유혹·변절을 반영한 실제 진영. state.side 에 값이 있으면 그쪽이 우선. */
+const teamOf = a => state.side[a.name] || R(a.roleId).team;
+
+function renderTeamCount(){
+  const live = alive();
+  $('#teamCount').innerHTML = ['mafia','citizen','neutral'].map(t=>{
+    const n = live.filter(a=>teamOf(a)===t).length;
+    const all = state.assign.filter(a=>teamOf(a)===t).length;
+    return `<span><span class="dot d-${t}"></span><span class="t-${t}">${TEAMNAME[t]}</span>`
+         + `<b>${n}</b> <span class="muted">/ ${all}</span></span>`;
+  }).join('');
+}
+
+/* ---- 진영 변경 (유혹 · 변절) ---- */
+const nameOptions = (ph)=> (ph?`<option value="">${ph}</option>`:'')
+  + state.assign.map(a=>`<option value="${esc(a.name)}">${esc(a.name)} · ${R(a.roleId).name}`
+      + `${state.dead[a.name]?' (사망)':''}</option>`).join('');
+
+function renderSideUI(){
+  const keep = $('#sideWho').value;
+  $('#sideWho').innerHTML = nameOptions('사람 선택');
+  if([...$('#sideWho').options].some(o=>o.value===keep)) $('#sideWho').value=keep;
+  const flipped = state.assign.filter(a=>teamOf(a)!==R(a.roleId).team);
+  $('#sideNote').innerHTML = flipped.length
+    ? '바뀐 사람 — ' + flipped.map(a=>`<b>${esc(a.name)}</b> <span class="t-${R(a.roleId).team}">`
+        + `${TEAMNAME[R(a.roleId).team]}</span> → <span class="t-${teamOf(a)}">${TEAMNAME[teamOf(a)]}</span>`).join(' · ')
+    : '바뀐 사람 없음';
+}
+$('#sideApply').onclick=()=>{
+  const who=$('#sideWho').value, to=$('#sideTo').value;
+  if(!who) return;
+  const a=state.assign.find(x=>x.name===who); if(!a) return;
+  const from=teamOf(a);
+  if(to) state.side[who]=to; else delete state.side[who];
+  const now=teamOf(a);
+  if(from===now) return;
+  addLog(`<b>${esc(who)}</b> — 진영 변경 <span class="t-${from}">${TEAMNAME[from]}</span>`
+       + ` → <span class="t-${now}">${TEAMNAME[now]}</span>`);
+  renderPlay(); save();
+};
+
+/* ---- 능력 사용 기록 ---- */
+function abilityOptions(name){
+  const a=state.assign.find(x=>x.name===name);
+  if(!a) return '<option value="능력 사용">능력 사용</option>';
+  const r=R(a.roleId);
+  const labels=[...new Set([
+    ...(r.rolls||[]).map(x=>x.label),
+    ...(r.picks||[]).map(x=>x.label),
+    ...(r.lines||[]).map(x=>x.label)
+  ])];
+  return [...labels, '능력 사용'].map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
+}
+function renderUseUI(){
+  const who=$('#useWho'), what=$('#useWhat'), tgt=$('#useTarget'), roll=$('#rollTarget');
+  const keepWho=who.value, keepTgt=tgt.value, keepRoll=roll.value;
+  who.innerHTML = nameOptions('사용자 선택');
+  tgt.innerHTML = nameOptions('대상 없음');
+  roll.innerHTML = nameOptions('대상 없음');
+  if([...who.options].some(o=>o.value===keepWho)) who.value=keepWho;
+  if([...tgt.options].some(o=>o.value===keepTgt)) tgt.value=keepTgt;
+  if([...roll.options].some(o=>o.value===keepRoll)) roll.value=keepRoll;
+  what.innerHTML = abilityOptions(who.value);
+}
+$('#useWho').onchange=()=>{ $('#useWhat').innerHTML = abilityOptions($('#useWho').value); };
+$('#useLog').onclick=()=>{
+  const who=$('#useWho').value, what=$('#useWhat').value, tgt=$('#useTarget').value;
+  if(!who) return;
+  const r=R(state.assign.find(x=>x.name===who).roleId);
+  addLog(`<b>${esc(who)}</b> <span class="muted">${r.emoji} ${r.name}</span> — ${esc(what)}`
+       + (tgt?` → <b>${esc(tgt)}</b>`:' <span class="muted">(대상 없음)</span>'));
+};
+
+/* ---- 투표 집계 ---- */
+function voteTally(){
+  const rows = alive().map(a=>({name:a.name, n:state.votes[a.name]||0}));
+  const total = rows.reduce((s,x)=>s+x.n, 0);
+  const max = rows.reduce((m,x)=>Math.max(m,x.n), 0);
+  return { rows, total, max, top: max>0 ? rows.filter(x=>x.n===max).map(x=>x.name) : [] };
+}
+function renderVotes(){
+  if(!state.assign.length){
+    $('#voteList').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
+    $('#voteSum').textContent=''; return;
+  }
+  const {rows, total, max, top} = voteTally();
+  if(!rows.length){
+    $('#voteList').innerHTML='<div class="muted">생존자가 없습니다.</div>';
+    $('#voteSum').textContent=''; return;
+  }
+  $('#voteList').innerHTML = rows.map(({name,n})=>{
+    const a=state.assign.find(x=>x.name===name);
+    return `<div class="vc ${n&&n===max?'top':''}">
+      <span class="dot d-${teamOf(a)}"></span><span class="vn">${esc(name)}</span>
+      <b class="vv">${n}</b>
+      <button class="btn ghost sm" data-v="-" data-n="${esc(name)}" ${n?'':'disabled'}>−</button>
+      <button class="btn ghost sm" data-v="+" data-n="${esc(name)}">+</button></div>`;
+  }).join('');
+  $$('#voteList [data-v]').forEach(b=>b.onclick=()=>{
+    const n=b.dataset.n, d=b.dataset.v==='+'?1:-1;
+    state.votes[n]=Math.max(0,(state.votes[n]||0)+d);
+    renderVotes(); save();
+  });
+  $('#voteSum').innerHTML = total
+    ? `총 <b>${total}</b>표 · 최다 ${top.map(esc).join(', ')} <b>${max}</b>표`
+      + (top.length>1?' <span class="no">— 동점</span>':'')
+    : '아직 들어온 표가 없습니다.';
+}
+$('#voteClear').onclick=()=>{ state.votes={}; renderVotes(); save(); };
+$('#voteLog').onclick=()=>{
+  const {rows, total, max, top} = voteTally();
+  if(!total) return;
+  const line = rows.filter(x=>x.n).sort((a,b)=>b.n-a.n)
+    .map(x=>`${esc(x.name)} ${x.n}`).join(' · ');
+  addLog(`<b>투표 집계</b> (총 ${total}표) — ${line}`
+    + `<div style="margin-top:4px">결과 → <b>${top.map(esc).join(', ')}</b> ${max}표`
+    + (top.length>1?' <span class="no">동점</span>':'')+'</div>');
+  state.votes={}; renderVotes(); save();
+};
 
 function renderPhase(){
   const el=$('#phaseNow');
@@ -842,12 +1022,15 @@ function renderPlay(){
     $('#alivePlist').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
     $('#rollBtns').innerHTML='<div class="muted">배정 후 표시됩니다.</div>';
     $('#aliveN').textContent=0; $('#totalN').textContent=0;
+    $('#teamCount').innerHTML='';
+    renderSideUI(); renderUseUI(); renderVotes();
     return;
   }
   $('#alivePlist').innerHTML = state.assign.map(a=>{
-    const r=R(a.roleId);
+    const r=R(a.roleId), t=teamOf(a);
     return `<div class="pc ${state.dead[a.name]?'dead':''}" data-n="${esc(a.name)}">
-      <span class="dot d-${r.team}"></span><span>${esc(a.name)}</span>
+      <span class="dot d-${t}"></span><span>${esc(a.name)}</span>
+      ${t!==r.team?`<span class="flip">${TEAMNAME[t]}편</span>`:''}
       <span style="margin-left:auto">${r.emoji}</span></div>`;}).join('');
   $$('#alivePlist .pc').forEach(el=>el.onclick=()=>{
     const n=el.dataset.n; state.dead[n]=!state.dead[n];
@@ -855,6 +1038,10 @@ function renderPlay(){
     renderPlay(); save();
   });
   $('#aliveN').textContent=alive().length; $('#totalN').textContent=state.assign.length;
+  renderTeamCount();
+  renderSideUI();
+  renderUseUI();
+  renderVotes();
 
   const btns=[];
   state.assign.forEach(a=>{
@@ -878,8 +1065,11 @@ function renderPlay(){
     const key=`${name}|${label}`; state.uses[key]=(state.uses[key]||0)+1;
     const left = spec.limit ? spec.limit-state.uses[key] : null;
     const okText = okTextOf(spec);
-    doRoll(spec.p, `${name} — ${label}`, spec.limit?` (${state.uses[key]}/${spec.limit})`:'',
+    const tgt = $('#rollTarget').value;
+    doRoll(spec.p, `${name} — ${label}${tgt?` → ${tgt}`:''}`,
+           spec.limit?` (${state.uses[key]}/${spec.limit})`:'',
            okText ? okText.replace('{left}', left).replace(/\{name\}/g, name) : null);
+    $('#rollTarget').value='';
     renderPlay(); save();
   });
   $$('#rollBtns [data-pick]').forEach(b=>b.onclick=()=>{
@@ -911,7 +1101,7 @@ $('#reviveAll').onclick=()=>{ state.dead={}; renderPlay(); save(); };
 
 function resetGame(){
   state.assign=[]; state.dead={}; state.uses={}; state.sent={};
-  state.log=[]; state.sel=null; state.phase=0;
+  state.log=[]; state.sel=null; state.phase=0; state.side={}; state.votes={};
   $('#msg').innerHTML='';
   renderAll(); save();
 }
@@ -1021,6 +1211,8 @@ function applyData(d){
   state.sent = s.sent||{}; state.uses = s.uses||{}; state.dead = s.dead||{};
   state.log  = s.log||[];  state.sel = (s.sel==null?null:s.sel);
   state.phase = Math.max(0, s.phase|0);
+  state.side = s.side||{};
+  state.votes = s.votes||{};
   state.assign = (s.assign||[]).filter(a=>a && R(a.roleId));
   ROLES.forEach(r=>{ if(!r.filler && !state.mode[r.id]) state.mode[r.id]='auto'; });
   if(state.sel!=null && !state.assign[state.sel]) state.sel=null;
